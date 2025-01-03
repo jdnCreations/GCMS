@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 
 	"github.com/jdnCreations/gcms/internal/database"
@@ -156,6 +157,47 @@ func (cfg *apiConfig) handleDeleteCustomer(w http.ResponseWriter, r *http.Reques
 	respondWithJSON(w, http.StatusOK, "Deleted customer")
 }
 
+func (cfg *apiConfig) handleUpdateCustomer(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	uuid, err := uuid.Parse(id)
+	if err != nil {
+		respondWithError(w, 400, "Invalid customer ID format")
+		return
+	}
+
+	log.Println("Attempting to update a customer: ", id)
+
+	customer, err := cfg.db.GetCustomerById(context.Background(), uuid)
+	if err != nil {
+		respondWithError(w, 404, "Customer not found")
+		return
+	}
+
+	log.Println("Found customer: ", customer.Email)
+
+	decoder := json.NewDecoder(r.Body)
+	params := models.UpdateCustomerInfo{} 
+	err = decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid input data")
+		return
+	}
+
+	cust, err := cfg.db.UpdateCustomer(context.Background(), database.UpdateCustomerParams{
+		Column1: params.FirstName,
+		Column2: params.LastName,
+		Column3: params.Email,
+		ID: uuid,
+	})
+	if err != nil {
+		respondWithError(w, 500, "Could not update customer")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, cust)
+}
+
 
 
 func main() {
@@ -184,17 +226,17 @@ func main() {
 		apiCfg.db = dbQueries
 		
 
-		mux := http.NewServeMux()	
+		r := mux.NewRouter()	
 		server := &http.Server{
 			Addr: ":8080",
-			Handler: mux,
+			Handler: r,
 		}
-		mux.HandleFunc("GET /api/healthz", handleReadiness)
-		mux.HandleFunc("GET /api/reservations", apiCfg.handleActiveReservations)
-		mux.HandleFunc("POST /api/customers", apiCfg.handleCreateCustomer)
-		mux.HandleFunc("GET /api/customers", apiCfg.handleGetAllCustomers)
-    // mux.HandleFunc("PUT /api/customers", apiCfg.handleUpdateCustomer)
-		mux.HandleFunc("DELETE /api/customers", apiCfg.handleDeleteCustomer)
+		r.HandleFunc("/api/healthz", handleReadiness).Methods("GET")
+		r.HandleFunc("/api/reservations", apiCfg.handleActiveReservations).Methods("GET")
+		r.HandleFunc("/api/customers", apiCfg.handleCreateCustomer).Methods("POST")
+		r.HandleFunc("/api/customers", apiCfg.handleGetAllCustomers).Methods("GET")
+    r.HandleFunc("/api/customers/{id}", apiCfg.handleUpdateCustomer).Methods("PUT")
+		r.HandleFunc("/api/customers", apiCfg.handleDeleteCustomer).Methods("DELETE")
 		server.ListenAndServe()
 		
 }

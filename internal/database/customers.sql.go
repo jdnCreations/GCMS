@@ -96,3 +96,36 @@ func (q *Queries) GetCustomerById(ctx context.Context, id uuid.UUID) (Customer, 
 	)
 	return i, err
 }
+
+const updateCustomer = `-- name: UpdateCustomer :one
+UPDATE customers 
+SET first_name = COALESCE(NULLIF($1, ''), first_name),
+    last_name = COALESCE(NULLIF($2, ''), last_name),
+    email = COALESCE(NULLIF($3, ''), email)
+WHERE id = $4
+RETURNING id, first_name, last_name, email
+`
+
+type UpdateCustomerParams struct {
+	Column1 interface{}
+	Column2 interface{}
+	Column3 interface{}
+	ID      uuid.UUID
+}
+
+func (q *Queries) UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error) {
+	row := q.db.QueryRowContext(ctx, updateCustomer,
+		arg.Column1,
+		arg.Column2,
+		arg.Column3,
+		arg.ID,
+	)
+	var i Customer
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+	)
+	return i, err
+}
