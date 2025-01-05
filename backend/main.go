@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -76,26 +75,10 @@ func (cfg *apiConfig) handleCreateCustomer(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	missingFields := []string{}
-	if params.FirstName == "" {
-		missingFields = append(missingFields, "first_name")
-	}
-	if params.LastName == "" {
-		missingFields = append(missingFields, "last_name")
-	}
-	if params.Email == "" {
-		missingFields = append(missingFields, "email")
-	}
-
-	if len(missingFields) > 0 {
-		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Missing required fields: %s", strings.Join(missingFields, ", ")))
-		return
-	}
-
-	// validate email
-	err = utils.ValidateEmail(params)
+	// validate customer 
+	err = utils.ValidateCustomer(params)
 	if err != nil {
-		respondWithError(w, 422, "Invalid email")
+		respondWithError(w, 422, err.Error())
 		return
 	}
 
@@ -209,7 +192,16 @@ func (cfg *apiConfig) handleGetAllGames(w http.ResponseWriter, r *http.Request) 
 }
 
 func (cfg *apiConfig) handleCreateGame(w http.ResponseWriter, r *http.Request) {
+  log.Println("Attempting to create game")
+  decoder := json.NewDecoder(r.Body)
+  gameInfo := models.GameInfo{}
+	err := decoder.Decode(&gameInfo)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
 
+  respondWithJSON(w, 200, gameInfo.Title)
 }
 
 
