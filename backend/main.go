@@ -12,6 +12,7 @@ import (
 	"github.com/go-playground/validator"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/lib/pq"
 
 	"github.com/jdnCreations/gcms/internal/database"
@@ -118,7 +119,7 @@ func (cfg *apiConfig) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = cfg.db.DeleteUserById(context.Background(), uuid) 
+	err = cfg.db.DeleteUserById(r.Context(), uuid) 
 	if err != nil {
 		log.Printf("Failed to delete user: %v", err)
 		respondWithError(w, http.StatusBadRequest, "Unable to delete user")
@@ -300,6 +301,7 @@ func (cfg *apiConfig) handleUpdateGame(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+
 		// run http server 
 		err := godotenv.Load(".env")
 		if err != nil {

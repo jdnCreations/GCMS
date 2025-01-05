@@ -27,7 +27,7 @@ type CreateGameParams struct {
 }
 
 func (q *Queries) CreateGame(ctx context.Context, arg CreateGameParams) (Game, error) {
-	row := q.db.QueryRowContext(ctx, createGame, arg.Title, arg.Copies)
+	row := q.db.QueryRow(ctx, createGame, arg.Title, arg.Copies)
 	var i Game
 	err := row.Scan(&i.ID, &i.Title, &i.Copies)
 	return i, err
@@ -38,7 +38,7 @@ DELETE FROM games WHERE id = $1
 `
 
 func (q *Queries) DeleteGameById(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteGameById, id)
+	_, err := q.db.Exec(ctx, deleteGameById, id)
 	return err
 }
 
@@ -48,7 +48,7 @@ SELECT id, title, copies from games
 
 // maybe add functionality to pass in what to sort by?
 func (q *Queries) GetAllGames(ctx context.Context) ([]Game, error) {
-	rows, err := q.db.QueryContext(ctx, getAllGames)
+	rows, err := q.db.Query(ctx, getAllGames)
 	if err != nil {
 		return nil, err
 	}
@@ -61,9 +61,6 @@ func (q *Queries) GetAllGames(ctx context.Context) ([]Game, error) {
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -75,7 +72,7 @@ SELECT id, title, copies FROM games where id = $1
 `
 
 func (q *Queries) GetGameById(ctx context.Context, id uuid.UUID) (Game, error) {
-	row := q.db.QueryRowContext(ctx, getGameById, id)
+	row := q.db.QueryRow(ctx, getGameById, id)
 	var i Game
 	err := row.Scan(&i.ID, &i.Title, &i.Copies)
 	return i, err
@@ -102,7 +99,7 @@ type UpdateGameParams struct {
 }
 
 func (q *Queries) UpdateGame(ctx context.Context, arg UpdateGameParams) (Game, error) {
-	row := q.db.QueryRowContext(ctx, updateGame, arg.Column1, arg.Column2, arg.ID)
+	row := q.db.QueryRow(ctx, updateGame, arg.Column1, arg.Column2, arg.ID)
 	var i Game
 	err := row.Scan(&i.ID, &i.Title, &i.Copies)
 	return i, err

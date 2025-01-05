@@ -5,9 +5,8 @@
 package database
 
 import (
-	"time"
-
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Game struct {
@@ -28,10 +27,10 @@ type Genre struct {
 
 type Reservation struct {
 	ID        uuid.UUID
-	StartTime time.Time
-	EndTime   time.Time
-	UserID    uuid.NullUUID
-	GameID    uuid.NullUUID
+	StartTime pgtype.Timestamp
+	EndTime   pgtype.Timestamp
+	UserID    pgtype.UUID
+	GameID    pgtype.UUID
 }
 
 type User struct {
