@@ -7,7 +7,6 @@ package database
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
 )
@@ -83,59 +82,27 @@ func (q *Queries) GetGameById(ctx context.Context, id uuid.UUID) (Game, error) {
 }
 
 const updateGame = `-- name: UpdateGame :one
-UPDATE games 
-SET title = COALESCE(NULLIF($1, ''), title),
-    copies = CASE WHEN $2::SMALLINT IS NOT NULL THEN $2 ELSE copies END
-WHERE id = $3
-RETURNING id, title, copies
+UPDATE games
+SET
+  title = CASE
+    WHEN $1::TEXT IS NOT NULL THEN $1
+    ELSE title
+  END,
+  copies = CASE
+    WHEN $2::SMALLINT IS NOT NULL then $2
+    ELSE copies
+  END
+WHERE id = $3 RETURNING id, title, copies
 `
 
 type UpdateGameParams struct {
-	Column1 interface{}
-	Column2 sql.NullInt16
+	Column1 string
+	Column2 int16
 	ID      uuid.UUID
 }
 
 func (q *Queries) UpdateGame(ctx context.Context, arg UpdateGameParams) (Game, error) {
 	row := q.db.QueryRowContext(ctx, updateGame, arg.Column1, arg.Column2, arg.ID)
-	var i Game
-	err := row.Scan(&i.ID, &i.Title, &i.Copies)
-	return i, err
-}
-
-const updateGameCopies = `-- name: UpdateGameCopies :one
-UPDATE games 
-SET copies = $1
-WHERE id = $2
-RETURNING id, title, copies
-`
-
-type UpdateGameCopiesParams struct {
-	Copies int16
-	ID     uuid.UUID
-}
-
-func (q *Queries) UpdateGameCopies(ctx context.Context, arg UpdateGameCopiesParams) (Game, error) {
-	row := q.db.QueryRowContext(ctx, updateGameCopies, arg.Copies, arg.ID)
-	var i Game
-	err := row.Scan(&i.ID, &i.Title, &i.Copies)
-	return i, err
-}
-
-const updateGameTitle = `-- name: UpdateGameTitle :one
-UPDATE games 
-SET title = $1
-WHERE id = $2
-RETURNING id, title, copies
-`
-
-type UpdateGameTitleParams struct {
-	Title string
-	ID    uuid.UUID
-}
-
-func (q *Queries) UpdateGameTitle(ctx context.Context, arg UpdateGameTitleParams) (Game, error) {
-	row := q.db.QueryRowContext(ctx, updateGameTitle, arg.Title, arg.ID)
 	var i Game
 	err := row.Scan(&i.ID, &i.Title, &i.Copies)
 	return i, err

@@ -191,9 +191,10 @@ func (cfg *apiConfig) handleCreateGame(w http.ResponseWriter, r *http.Request) {
   log.Println("Attempting to create game")
   decoder := json.NewDecoder(r.Body)
   gameInfo := models.GameInfo{}
+	log.Println(gameInfo)
 	err := decoder.Decode(&gameInfo)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -208,7 +209,7 @@ func (cfg *apiConfig) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	game, err := cfg.db.CreateGame(context.Background(), 
 	database.CreateGameParams{
 		Title: gameInfo.Title,
-		Copies: int16(gameInfo.Copies),
+		Copies: gameInfo.Copies,
 	})
 	if err != nil {
 		respondWithError(w, 422, "Could not create game, name must be unique")
@@ -263,28 +264,35 @@ func (cfg *apiConfig) handleUpdateGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	gameToUpdate, err := cfg.db.GetGameById(r.Context(), uuid)
+	if err != nil {
+		respondWithError(w, 404, "Game does not exist with that id")
+		return
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	params := models.UpdateGameInfo{}
 	err = decoder.Decode(&params)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid input data")
+		respondWithError(w, http.StatusBadRequest, "invalid request payload")
 		return
 	}
 
-	var copies sql.NullInt16
-	if params.Copies != nil {
-		copies = sql.NullInt16{Int16: *params.Copies, Valid: true}
-	} else {
-		copies = sql.NullInt16{Valid: false}
+	if params.Title != nil {
+		gameToUpdate.Title = *params.Title
 	}
 
-	game, err := cfg.db.UpdateGame(context.Background(), database.UpdateGameParams{
-		Column1: params.Title,
-		Column2: copies,
-		ID: uuid,
+	if params.Copies != nil {
+		gameToUpdate.Copies = *params.Copies
+	}
+	
+	game, err := cfg.db.UpdateGame(r.Context(), database.UpdateGameParams{
+		Column1: gameToUpdate.Title,
+		Column2: gameToUpdate.Copies,
+		ID: gameToUpdate.ID,
 	})
 	if err != nil {
-		respondWithError(w, 500, err.Error())
+		respondWithError(w, 422, "Could not update game")
 		return
 	}
 

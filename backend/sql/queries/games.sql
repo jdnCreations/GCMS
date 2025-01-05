@@ -17,23 +17,16 @@ DELETE FROM games WHERE id = $1;
 -- name: GetAllGames :many
 SELECT * from games;
 
--- name: UpdateGameTitle :one
-UPDATE games 
-SET title = $1
-WHERE id = $2
-RETURNING id, title, copies;
-
-
--- name: UpdateGameCopies :one
-UPDATE games 
-SET copies = $1
-WHERE id = $2
-RETURNING id, title, copies;
-
 
 -- name: UpdateGame :one
-UPDATE games 
-SET title = COALESCE(NULLIF($1, ''), title),
-    copies = CASE WHEN $2::SMALLINT IS NOT NULL THEN $2 ELSE copies END
-WHERE id = $3
-RETURNING id, title, copies;
+UPDATE games
+SET
+  title = CASE
+    WHEN $1::TEXT IS NOT NULL THEN $1
+    ELSE title
+  END,
+  copies = CASE
+    WHEN $2::SMALLINT IS NOT NULL then $2
+    ELSE copies
+  END
+WHERE id = $3 RETURNING id, title, copies;

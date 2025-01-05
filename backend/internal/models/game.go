@@ -6,6 +6,6 @@ type GameInfo struct {
 }
 
 type UpdateGameInfo struct {
-	Title string `json:"title"`
+	Title *string `json:"title"`
 	Copies *int16 `json:"copies"`
 }
