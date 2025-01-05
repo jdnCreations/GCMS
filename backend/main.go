@@ -65,17 +65,17 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
   w.Write(dat)
 }
 
-func (cfg *apiConfig) handleCreateCustomer(w http.ResponseWriter, r *http.Request) {
-	log.Println("Attempting to create a customer")
+func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	log.Println("Attempting to create a user")
 	decoder := json.NewDecoder(r.Body)
-	params := models.CustomerInfo{} 
+	params := models.UserInfo{} 
 	err := decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, 500, err.Error())
 		return
 	}
 
-	// validate customer
+	// validate user
 	validate := validator.New()
 	err = validate.Struct(params)
 	if err != nil {
@@ -83,94 +83,94 @@ func (cfg *apiConfig) handleCreateCustomer(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	user, err := cfg.db.CreateCustomer(r.Context(), database.CreateCustomerParams{
+	user, err := cfg.db.CreateUser(r.Context(), database.CreateUserParams{
 		FirstName: params.FirstName,
 		LastName: params.LastName,
 		Email: params.Email,
 	}) 
 	if err != nil {
 		fmt.Printf("Error: %s", err.Error())
-		respondWithError(w, 422, "Could not create customer")
+		respondWithError(w, 422, "Could not create user")
 		return
 	}
 
 	respondWithJSON(w, 201, user)
 }
 
-func (cfg *apiConfig) handleGetAllCustomers(w http.ResponseWriter, r *http.Request) {
-	log.Println("Attempting to retrieve all customers")
-	customers, err := cfg.db.GetAllCustomers(context.Background())
+func (cfg *apiConfig) handleGetAllUsers(w http.ResponseWriter, r *http.Request) {
+	log.Println("Attempting to retrieve all users")
+	users, err := cfg.db.GetAllUsers(context.Background())
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Could not retrieve customers")
+		respondWithError(w, http.StatusBadRequest, "Could not retrieve users")
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, customers)	
+	respondWithJSON(w, http.StatusOK, users)	
 }
 
-func (cfg *apiConfig) handleDeleteCustomer(w http.ResponseWriter, r *http.Request) {
-	log.Println("Attempting to delete customer")
+func (cfg *apiConfig) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
+	log.Println("Attempting to delete user")
 	vars := mux.Vars(r)
 	id := vars["id"]
 	uuid, err := uuid.Parse(id)
 	if err != nil {
-		respondWithError(w, 400, "Invalid customer ID format")
+		respondWithError(w, 400, "Invalid user ID format")
 		return
 	}
 
-	err = cfg.db.DeleteCustomerById(context.Background(), uuid) 
+	err = cfg.db.DeleteUserById(context.Background(), uuid) 
 	if err != nil {
-		log.Printf("Failed to delete customer: %v", err)
-		respondWithError(w, http.StatusBadRequest, "Unable to delete customer")
+		log.Printf("Failed to delete user: %v", err)
+		respondWithError(w, http.StatusBadRequest, "Unable to delete user")
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, "Deleted customer")
+	respondWithJSON(w, http.StatusOK, "Deleted user")
 }
 
-func (cfg *apiConfig) handleGetCustomerById(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handleGetUserById(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	uuid, err := uuid.Parse(id)
 	if err != nil {
-		respondWithError(w, 400, "Invalid customer ID format")
+		respondWithError(w, 400, "Invalid user ID format")
 		return
 	}
 
-	customer, err := cfg.db.GetCustomerById(context.Background(), uuid)
+	user, err := cfg.db.GetUserById(context.Background(), uuid)
 	if err != nil {
-		respondWithError(w, 404, "Customer not found")
+		respondWithError(w, 404, "user not found")
 		return
 	}
 
-	respondWithJSON(w, 200, customer)
+	respondWithJSON(w, 200, user)
 }
 
-func (cfg *apiConfig) handleUpdateCustomer(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	uuid, err := uuid.Parse(id)
 	if err != nil {
-		respondWithError(w, 400, "Invalid customer ID format")
+		respondWithError(w, 400, "Invalid user ID format")
 		return
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	params := models.UpdateCustomerInfo{} 
+	params := models.UpdateUserInfo{} 
 	err = decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid input data")
 		return
 	}
 
-	cust, err := cfg.db.UpdateCustomer(context.Background(), database.UpdateCustomerParams{
+	cust, err := cfg.db.UpdateUser(context.Background(), database.UpdateUserParams{
 		Column1: params.FirstName,
 		Column2: params.LastName,
 		Column3: params.Email,
 		ID: uuid,
 	})
 	if err != nil {
-		respondWithError(w, 500, "Could not update customer")
+		respondWithError(w, 500, "Could not update user")
 		return
 	}
 
@@ -224,7 +224,7 @@ func (cfg *apiConfig) handleDeleteGame(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 	uuid, err := uuid.Parse(id)
 	if err != nil {
-		respondWithError(w, 400, "Invalid Customer ID format")
+		respondWithError(w, 400, "Invalid user ID format")
 		return
 	}
 
@@ -332,12 +332,12 @@ func main() {
 		}
 		r.HandleFunc("/api/healthz", handleReadiness).Methods("GET")
 
-		// customers
-		r.HandleFunc("/api/customers", apiCfg.handleCreateCustomer).Methods("POST")
-		r.HandleFunc("/api/customers/{id}", apiCfg.handleGetCustomerById).Methods("GET")
-		r.HandleFunc("/api/customers", apiCfg.handleGetAllCustomers).Methods("GET")
-    r.HandleFunc("/api/customers/{id}", apiCfg.handleUpdateCustomer).Methods("PUT")
-		r.HandleFunc("/api/customers/{id}", apiCfg.handleDeleteCustomer).Methods("DELETE")
+		// users
+		r.HandleFunc("/api/users", apiCfg.handleCreateUser).Methods("POST")
+		r.HandleFunc("/api/users/{id}", apiCfg.handleGetUserById).Methods("GET")
+		r.HandleFunc("/api/users", apiCfg.handleGetAllUsers).Methods("GET")
+    r.HandleFunc("/api/users/{id}", apiCfg.handleUpdateUser).Methods("PUT")
+		r.HandleFunc("/api/users/{id}", apiCfg.handleDeleteUser).Methods("DELETE")
 
 		// games
 		r.HandleFunc("/api/games", apiCfg.handleGetAllGames).Methods("GET")

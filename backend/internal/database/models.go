@@ -10,13 +10,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type Customer struct {
-	ID        uuid.UUID
-	FirstName string
-	LastName  string
-	Email     string
-}
-
 type Game struct {
 	ID     uuid.UUID
 	Title  string
@@ -34,9 +27,17 @@ type Genre struct {
 }
 
 type Reservation struct {
-	ID         uuid.UUID
-	StartTime  time.Time
-	EndTime    time.Time
-	CustomerID uuid.NullUUID
-	GameID     uuid.NullUUID
+	ID        uuid.UUID
+	StartTime time.Time
+	EndTime   time.Time
+	UserID    uuid.NullUUID
+	GameID    uuid.NullUUID
+}
+
+type User struct {
+	ID        uuid.UUID
+	FirstName string
+	LastName  string
+	Email     string
+	IsAdmin   bool
 }

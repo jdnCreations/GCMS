@@ -7,8 +7,8 @@ import (
 
 var validate = validator.New()
 
-func ValidateCustomer(customer models.CustomerInfo) error {
-	err := validate.Struct(customer)
+func ValidateCustomer(user models.UserInfo) error {
+	err := validate.Struct(user)
 	if err != nil {
 		return err
 	}
