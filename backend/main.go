@@ -9,13 +9,13 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/go-playground/validator"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 
 	"github.com/jdnCreations/gcms/internal/database"
 	"github.com/jdnCreations/gcms/internal/models"
-	"github.com/jdnCreations/gcms/internal/utils"
 	"github.com/joho/godotenv"
 )
 
@@ -75,8 +75,9 @@ func (cfg *apiConfig) handleCreateCustomer(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// validate customer 
-	err = utils.ValidateCustomer(params)
+	// validate customer
+	validate := validator.New()
+	err = validate.Struct(params)
 	if err != nil {
 		respondWithError(w, 422, err.Error())
 		return
@@ -109,24 +110,11 @@ func (cfg *apiConfig) handleGetAllCustomers(w http.ResponseWriter, r *http.Reque
 
 func (cfg *apiConfig) handleDeleteCustomer(w http.ResponseWriter, r *http.Request) {
 	log.Println("Attempting to delete customer")
-  decoder := json.NewDecoder(r.Body)
-	var params struct {
-		ID string `json:"id"`
-	}
-	err := decoder.Decode(&params)
+	vars := mux.Vars(r)
+	id := vars["id"]
+	uuid, err := uuid.Parse(id)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
-		return
-	}
-
-	if params.ID == "" {
-		respondWithError(w, http.StatusBadRequest, "Customer ID is required")
-		return
-	}
-
-	uuid, err := uuid.Parse(params.ID)
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid Customer ID format")
+		respondWithError(w, 400, "Invalid customer ID format")
 		return
 	}
 
@@ -140,7 +128,7 @@ func (cfg *apiConfig) handleDeleteCustomer(w http.ResponseWriter, r *http.Reques
 	respondWithJSON(w, http.StatusOK, "Deleted customer")
 }
 
-func (cfg *apiConfig) handleUpdateCustomer(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handleGetCustomerById(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	uuid, err := uuid.Parse(id)
@@ -149,15 +137,23 @@ func (cfg *apiConfig) handleUpdateCustomer(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	log.Println("Attempting to update a customer: ", id)
-
 	customer, err := cfg.db.GetCustomerById(context.Background(), uuid)
 	if err != nil {
 		respondWithError(w, 404, "Customer not found")
 		return
 	}
 
-	log.Println("Found customer: ", customer.Email)
+	respondWithJSON(w, 200, customer)
+}
+
+func (cfg *apiConfig) handleUpdateCustomer(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	uuid, err := uuid.Parse(id)
+	if err != nil {
+		respondWithError(w, 400, "Invalid customer ID format")
+		return
+	}
 
 	decoder := json.NewDecoder(r.Body)
 	params := models.UpdateCustomerInfo{} 
@@ -201,10 +197,99 @@ func (cfg *apiConfig) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-  respondWithJSON(w, 200, gameInfo.Title)
+	// validate game 
+	validate := validator.New()
+	err = validate.Struct(gameInfo)
+	if err != nil {
+		respondWithError(w, 422, err.Error())
+		return
+	}
+
+	game, err := cfg.db.CreateGame(context.Background(), 
+	database.CreateGameParams{
+		Title: gameInfo.Title,
+		Copies: int16(gameInfo.Copies),
+	})
+	if err != nil {
+		respondWithError(w, 422, "Could not create game, name must be unique")
+		return
+	}
+
+  respondWithJSON(w, 200, game)
 }
 
+func (cfg *apiConfig) handleDeleteGame(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	uuid, err := uuid.Parse(id)
+	if err != nil {
+		respondWithError(w, 400, "Invalid Customer ID format")
+		return
+	}
 
+	err = cfg.db.DeleteGameById(context.Background(), uuid)
+	if err != nil {
+		respondWithError(w, 404, "Game not found")
+		return
+	}
+
+	respondWithJSON(w, 200, nil)
+}
+
+func (cfg *apiConfig) handleGetGameById(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	uuid, err := uuid.Parse(id)
+	if err != nil {
+		respondWithError(w, 400, "Invalid game ID format")
+		return
+	}
+
+	game, err := cfg.db.GetGameById(context.Background(), uuid)
+	if err != nil {
+		respondWithError(w, 404, "Game not found")
+		return
+	}
+
+	respondWithJSON(w, 200, game)
+}
+
+func (cfg *apiConfig) handleUpdateGame(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	uuid, err := uuid.Parse(id)
+	if err != nil {
+		respondWithError(w, 400, "Invalid game ID format")
+		return
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := models.UpdateGameInfo{}
+	err = decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid input data")
+		return
+	}
+
+	var copies sql.NullInt16
+	if params.Copies != nil {
+		copies = sql.NullInt16{Int16: *params.Copies, Valid: true}
+	} else {
+		copies = sql.NullInt16{Valid: false}
+	}
+
+	game, err := cfg.db.UpdateGame(context.Background(), database.UpdateGameParams{
+		Column1: params.Title,
+		Column2: copies,
+		ID: uuid,
+	})
+	if err != nil {
+		respondWithError(w, 500, err.Error())
+		return
+	}
+
+	respondWithJSON(w, 200, game)
+}
 
 func main() {
 		// run http server 
@@ -238,13 +323,22 @@ func main() {
 			Handler: r,
 		}
 		r.HandleFunc("/api/healthz", handleReadiness).Methods("GET")
+
+		// customers
 		r.HandleFunc("/api/customers", apiCfg.handleCreateCustomer).Methods("POST")
+		r.HandleFunc("/api/customers/{id}", apiCfg.handleGetCustomerById).Methods("GET")
 		r.HandleFunc("/api/customers", apiCfg.handleGetAllCustomers).Methods("GET")
     r.HandleFunc("/api/customers/{id}", apiCfg.handleUpdateCustomer).Methods("PUT")
-		r.HandleFunc("/api/customers", apiCfg.handleDeleteCustomer).Methods("DELETE")
+		r.HandleFunc("/api/customers/{id}", apiCfg.handleDeleteCustomer).Methods("DELETE")
+
 		// games
 		r.HandleFunc("/api/games", apiCfg.handleGetAllGames).Methods("GET")
 		r.HandleFunc("/api/games", apiCfg.handleCreateGame).Methods("POST")
+		r.HandleFunc("/api/games/{id}", apiCfg.handleGetGameById).Methods("GET")
+		r.HandleFunc("/api/games/{id}", apiCfg.handleDeleteGame).Methods("DELETE")
+		r.HandleFunc("/api/games/{id}", apiCfg.handleUpdateGame).Methods("PUT")
+
+		// reservations
 		r.HandleFunc("/api/reservations", apiCfg.handleActiveReservations).Methods("GET")
 		server.ListenAndServe()
 		

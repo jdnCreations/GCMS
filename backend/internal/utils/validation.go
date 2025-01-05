@@ -14,3 +14,11 @@ func ValidateCustomer(customer models.CustomerInfo) error {
 	}
 	return nil
 }
+
+func ValidateGame(game models.GameInfo) error {
+	err := validate.Struct(game)
+	if err != nil {
+		return err
+	}
+	return nil
+}

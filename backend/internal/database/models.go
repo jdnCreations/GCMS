@@ -5,7 +5,6 @@
 package database
 
 import (
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,8 +20,17 @@ type Customer struct {
 type Game struct {
 	ID     uuid.UUID
 	Title  string
-	Genre  sql.NullString
 	Copies int16
+}
+
+type GameGenre struct {
+	GameID  uuid.UUID
+	GenreID uuid.UUID
+}
+
+type Genre struct {
+	ID   uuid.UUID
+	Name string
 }
 
 type Reservation struct {

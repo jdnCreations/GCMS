@@ -2,12 +2,11 @@
 SELECT * FROM games where id = $1;
 
 -- name: CreateGame :one
-INSERT INTO games (id, title, genre, copies)
+INSERT INTO games (id, title, copies)
 VALUES (
   gen_random_uuid(),
   $1,
-  $2,
-  $3
+  $2
 )
 RETURNING *;
 
@@ -18,11 +17,23 @@ DELETE FROM games WHERE id = $1;
 -- name: GetAllGames :many
 SELECT * from games;
 
+-- name: UpdateGameTitle :one
+UPDATE games 
+SET title = $1
+WHERE id = $2
+RETURNING id, title, copies;
+
+
+-- name: UpdateGameCopies :one
+UPDATE games 
+SET copies = $1
+WHERE id = $2
+RETURNING id, title, copies;
+
+
 -- name: UpdateGame :one
 UPDATE games 
 SET title = COALESCE(NULLIF($1, ''), title),
-    genre = COALESCE(NULLIF($2, ''), genre),
-    copies = COALESCE(NULLIF($3, ''), copies)
-WHERE id = $4
-RETURNING id, title, genre, copies;
-
+    copies = CASE WHEN $2::SMALLINT IS NOT NULL THEN $2 ELSE copies END
+WHERE id = $3
+RETURNING id, title, copies;
