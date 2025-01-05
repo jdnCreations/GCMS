@@ -97,6 +97,31 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (User, error) {
 	return i, err
 }
 
+const setAdmin = `-- name: SetAdmin :one
+UPDATE users
+SET is_admin = $1
+WHERE id = $2
+RETURNING id, first_name, last_name, email, is_admin
+`
+
+type SetAdminParams struct {
+	IsAdmin bool
+	ID      uuid.UUID
+}
+
+func (q *Queries) SetAdmin(ctx context.Context, arg SetAdminParams) (User, error) {
+	row := q.db.QueryRow(ctx, setAdmin, arg.IsAdmin, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.IsAdmin,
+	)
+	return i, err
+}
+
 const updateUser = `-- name: UpdateUser :one
 UPDATE users 
 SET first_name = COALESCE(NULLIF($1, ''), first_name),

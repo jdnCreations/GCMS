@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -12,12 +11,14 @@ import (
 	"github.com/go-playground/validator"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
 	"github.com/jdnCreations/gcms/internal/database"
 	"github.com/jdnCreations/gcms/internal/models"
-	"github.com/joho/godotenv"
+	"github.com/jdnCreations/gcms/internal/utils"
 )
 
 type apiConfig struct {
@@ -300,28 +301,127 @@ func (cfg *apiConfig) handleUpdateGame(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, 200, game)
 }
 
-func main() {
+func (cfg *apiConfig) handleCreateGenre(w http.ResponseWriter, r *http.Request) {
+  decoder := json.NewDecoder(r.Body)
+  genreInfo := models.GenreInfo{}
+  err := decoder.Decode(&genreInfo)
+  if err != nil {
+    respondWithError(w, http.StatusBadRequest, err.Error())
+		return
+  }
 
-		// run http server 
-		err := godotenv.Load(".env")
-		if err != nil {
-			log.Printf("warning: assuming default configuration. .env unreadable: %v", err)
-		}
-		
+  genre, err := cfg.db.CreateGenre(r.Context(), genreInfo.Name)
+  if err != nil {
+    respondWithError(w, 422, "Genre may already exist")
+    return
+  }
+
+  respondWithJSON(w, 200, genre)
+}
+
+func (cfg *apiConfig) handleGetAllGenres(w http.ResponseWriter, r *http.Request) {
+  genres, err := cfg.db.GetAllGenres(r.Context())
+  if err != nil {
+    respondWithError(w, 422, "Could not retrieve genres")
+    return
+  }
+
+  respondWithJSON(w, 200, genres)
+}
+
+func (cfg *apiConfig) handleGetGenreById(w http.ResponseWriter, r *http.Request) {
+  vars := mux.Vars(r)
+  id := vars["id"]
+  uuid, err := uuid.Parse(id)
+  if err != nil {
+    respondWithError(w, 400, "Invalid ID format")
+    return
+  }
+
+  genre, err := cfg.db.GetGenreById(r.Context(), uuid)
+  if err != nil {
+    respondWithError(w, 404, "No genre with that id")
+    return
+  }
+
+  respondWithJSON(w, 200, genre)
+}
+
+func (cfg *apiConfig) handleDeleteGenre(w http.ResponseWriter, r *http.Request) {
+  vars := mux.Vars(r)
+  id := vars["id"]
+  uuid, err := uuid.Parse(id)
+  if err != nil {
+    respondWithError(w, 400, "invalid ID format")
+    return
+  }
+
+  err = cfg.db.DeleteGenreById(r.Context(), uuid)
+  if err != nil {
+    respondWithError(w, 404, "No genre with that id")
+    return
+  }
+
+  respondWithJSON(w, 200, "deleted")
+}
+
+func (cfg *apiConfig) handleUpdateGenre(w http.ResponseWriter, r *http.Request) {
+  uuid, err := utils.GetIdFromRequest(r)
+  if err != nil {
+    respondWithError(w, 400, "Invalid ID format")
+  }
+
+  genreToUpdate, err := cfg.db.GetGenreById(r.Context(), uuid)
+  if err != nil {
+    respondWithError(w, 404, "No genre with that id")
+    return
+  }
+
+  decoder := json.NewDecoder(r.Body)
+  type p struct {
+    Name *string
+  }
+
+  params := p{}
+	err = decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid request payload")
+		return
+	}
+
+  if params.Name != nil {
+    genreToUpdate.Name = *params.Name
+  }
+  
+  genre, err := cfg.db.UpdateGenre(r.Context(), database.UpdateGenreParams{
+    Column1: genreToUpdate.Name,
+    ID: genreToUpdate.ID,
+  })
+  if err != nil {
+    respondWithError(w, 422, "Unable to update genre")
+    return
+  }
+
+  respondWithJSON(w, 200, genre)
+}
+
+func main() {
+    err := godotenv.Load(".env")
+    if err != nil {
+      log.Fatalf("Could not load .env: %v", err)
+    }
 		port := os.Getenv("PORT")
 		dbURL := os.Getenv("DATABASE_URL")
 		if port == "" {
 			log.Fatal("PORT environment variable is not set")
 		}
 
-		
-		db, err := sql.Open("postgres", dbURL)
+		db, err := pgx.Connect(context.Background(), dbURL)
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer db.Close()
+		defer db.Close(context.Background())
 
-		
 		dbQueries := database.New(db)
 		apiCfg := apiConfig{}
 		apiCfg.db = dbQueries
@@ -347,6 +447,13 @@ func main() {
 		r.HandleFunc("/api/games/{id}", apiCfg.handleGetGameById).Methods("GET")
 		r.HandleFunc("/api/games/{id}", apiCfg.handleDeleteGame).Methods("DELETE")
 		r.HandleFunc("/api/games/{id}", apiCfg.handleUpdateGame).Methods("PUT")
+
+    // genres
+    r.HandleFunc("/api/genres", apiCfg.handleCreateGenre).Methods("POST")
+    r.HandleFunc("/api/genres", apiCfg.handleGetAllGenres).Methods("GET")
+    r.HandleFunc("/api/genres/{id}", apiCfg.handleGetGenreById).Methods("GET")
+    r.HandleFunc("/api/genres/{id}", apiCfg.handleDeleteGenre).Methods("DELETE")
+    r.HandleFunc("/api/genres/{id}", apiCfg.handleUpdateGenre).Methods("PUT")
 
 		// reservations
 		r.HandleFunc("/api/reservations", apiCfg.handleActiveReservations).Methods("GET")

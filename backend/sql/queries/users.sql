@@ -24,3 +24,9 @@ SET first_name = COALESCE(NULLIF($1, ''), first_name),
     email = COALESCE(NULLIF($3, ''), email)
 WHERE id = $4
 RETURNING id, first_name, last_name, email;
+
+-- name: SetAdmin :one
+UPDATE users
+SET is_admin = $1
+WHERE id = $2
+RETURNING *;
