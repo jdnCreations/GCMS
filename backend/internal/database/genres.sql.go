@@ -40,7 +40,6 @@ const getAllGenres = `-- name: GetAllGenres :many
 SELECT id, name from genres
 `
 
-// maybe add functionality to pass in what to sort by?
 func (q *Queries) GetAllGenres(ctx context.Context) ([]Genre, error) {
 	rows, err := q.db.Query(ctx, getAllGenres)
 	if err != nil {

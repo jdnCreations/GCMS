@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-playground/validator"
 	"github.com/google/uuid"
@@ -366,7 +367,7 @@ func (cfg *apiConfig) handleDeleteGenre(w http.ResponseWriter, r *http.Request) 
 }
 
 func (cfg *apiConfig) handleUpdateGenre(w http.ResponseWriter, r *http.Request) {
-  uuid, err := utils.GetIdFromRequest(r)
+  uuid, err := utils.GetIdFromRequest("id", r)
   if err != nil {
     respondWithError(w, 400, "Invalid ID format")
   }
@@ -377,13 +378,13 @@ func (cfg *apiConfig) handleUpdateGenre(w http.ResponseWriter, r *http.Request) 
     return
   }
 
-  decoder := json.NewDecoder(r.Body)
   type p struct {
     Name *string
   }
-
   params := p{}
+  decoder := json.NewDecoder(r.Body)
 	err = decoder.Decode(&params)
+
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "invalid request payload")
 		return
@@ -403,6 +404,62 @@ func (cfg *apiConfig) handleUpdateGenre(w http.ResponseWriter, r *http.Request) 
   }
 
   respondWithJSON(w, 200, genre)
+}
+
+func (cfg *apiConfig) handleAddGenreToGame(w http.ResponseWriter, r *http.Request) {
+  gameID, err := utils.GetIdFromRequest("gameID", r)
+  if err != nil {
+    respondWithError(w, 400, "Invalid ID format - gameid")
+    return
+  }
+
+  type p struct {
+    GenreID string `json:"genre_id"`
+  }
+  params := p{}
+  decoder := json.NewDecoder(r.Body)
+  err = decoder.Decode(&params)
+  if err != nil {
+    respondWithError(w, http.StatusBadRequest, "invalid request payload")
+    return
+  }
+
+  genreID, err := uuid.Parse(params.GenreID)
+  if err != nil {
+    respondWithError(w, 400, "Invalid ID format - genreID")
+    return
+  }
+
+  gg, err := cfg.db.AddGenreToGame(r.Context(), database.AddGenreToGameParams{
+    GameID: gameID,
+    GenreID: genreID,
+  })
+  if err != nil {
+    respondWithError(w, 422, "Could not add genre to game")
+    return
+  }
+
+  respondWithJSON(w, 200, gg)
+}
+
+func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Request) {
+  type p struct {
+    StartTime time.Time `json:"start_time"`
+    EndTime time.Time `json:"end_time"`
+    UserID string `json:"user_id"`
+    GameID string `json:"game_id"`
+  }
+  params := p{}
+  decoder := json.NewDecoder(r.Body)
+  err := decoder.Decode(&params)
+  if err != nil {
+    respondWithError(w, http.StatusBadRequest, "invalid request payload")
+    return
+  }
+
+//   res, err := cfg.db.CreateReservation(r.Context(), database.CreateReservationParams{
+//     StartTime: ,
+//   })
 }
 
 func main() {
@@ -428,9 +485,11 @@ func main() {
 		
 
 		r := mux.NewRouter()	
+		// wrap with cors and json content type
+		corsRouter := enableCORS(jsonContentTypeMiddleware(r))
 		server := &http.Server{
 			Addr: ":8080",
-			Handler: r,
+			Handler: corsRouter,
 		}
 		r.HandleFunc("/api/healthz", handleReadiness).Methods("GET")
 
@@ -455,8 +514,37 @@ func main() {
     r.HandleFunc("/api/genres/{id}", apiCfg.handleDeleteGenre).Methods("DELETE")
     r.HandleFunc("/api/genres/{id}", apiCfg.handleUpdateGenre).Methods("PUT")
 
+    // add genre to games
+    r.HandleFunc("/api/game_genres/{gameID}", apiCfg.handleAddGenreToGame).Methods("POST")
+
 		// reservations
+    r.HandleFunc("/api/reservations", apiCfg.handleCreateReservation).Methods("POST")
 		r.HandleFunc("/api/reservations", apiCfg.handleActiveReservations).Methods("GET")
+
+
 		server.ListenAndServe()
 		
+}
+
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*") // allow any origin
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+
+}
+
+func jsonContentTypeMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		next.ServeHTTP(w, r)
+	})
 }
