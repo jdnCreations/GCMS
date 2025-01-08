@@ -7,7 +7,7 @@ import (
 
 var validate = validator.New()
 
-func ValidateCustomer(user models.UserInfo) error {
+func ValidateCustomer(user interface{}) error {
 	err := validate.Struct(user)
 	if err != nil {
 		return err

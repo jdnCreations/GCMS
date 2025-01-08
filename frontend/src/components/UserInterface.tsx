@@ -19,15 +19,15 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
   const [users, setUsers] = useState<User[]>([]);
   const [newUser, setNewUser] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
+    FirstName: '',
+    LastName: '',
+    Email: '',
   });
   const [updatedUser, setUpdateUser] = useState({
-    id: '',
-    first_name: '',
-    last_name: '',
-    email: '',
+    ID: '',
+    FirstName: '',
+    LastName: '',
+    Email: '',
   });
 
   // fetch all users
@@ -35,7 +35,7 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
     const fetchData = async () => {
       try {
         const response = await axios.get(`${apiUrl}/api/users`);
-        setUsers(response.data.reverse());
+        setUsers(response?.data.reverse());
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -50,7 +50,7 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
     try {
       const response = await axios.post(`${apiUrl}/api/users`, newUser);
       setUsers([response.data, ...users]);
-      setNewUser({ first_name: '', last_name: '', email: '' });
+      setNewUser({ FirstName: '', LastName: '', Email: '' });
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
         console.error('API Error:', error.response.data.error);
@@ -65,7 +65,7 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
 
     try {
       const response = await axios.put(
-        `${apiUrl}/api/users/${updatedUser.id}`,
+        `${apiUrl}/api/users/${updatedUser.ID}`,
         updatedUser
       );
       const updatedUserData = response.data;
@@ -74,7 +74,7 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
           user.ID === updatedUserData.ID ? updatedUserData : user
         )
       );
-      setUpdateUser({ id: '', first_name: '', last_name: '', email: '' });
+      setUpdateUser({ ID: '', FirstName: '', LastName: '', Email: '' });
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
         console.error('API Error:', error.response.data.error);
@@ -84,10 +84,10 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
     }
   };
 
-  const deleteUser = async (id: string) => {
+  const deleteUser = async (ID: string) => {
     try {
-      await axios.delete(`${apiUrl}/api/users/${id}`);
-      setUsers(users.filter((user) => user.ID !== id));
+      await axios.delete(`${apiUrl}/api/users/${ID}`);
+      setUsers(users.filter((user) => user.ID !== ID));
     } catch (error) {
       console.error('Error deleting user:', error);
     }
@@ -104,26 +104,26 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
           <input
             type='text'
             placeholder='First Name'
-            value={newUser.first_name}
+            value={newUser.FirstName}
             onChange={(e) =>
-              setNewUser({ ...newUser, first_name: e.target.value })
+              setNewUser({ ...newUser, FirstName: e.target.value })
             }
             className='mb-2 w-full p-2 border border-gray-300 rounded'
           />
           <input
             type='text'
             placeholder='Last Name'
-            value={newUser.last_name}
+            value={newUser.LastName}
             onChange={(e) =>
-              setNewUser({ ...newUser, last_name: e.target.value })
+              setNewUser({ ...newUser, LastName: e.target.value })
             }
             className='mb-2 w-full p-2 border border-gray-300 rounded'
           />
           <input
             type='text'
             placeholder='Email'
-            value={newUser.email}
-            onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+            value={newUser.Email}
+            onChange={(e) => setNewUser({ ...newUser, Email: e.target.value })}
             className='mb-2 w-full p-2 border border-gray-300 rounded'
           />
           <button
@@ -144,36 +144,36 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
           <input
             type='text'
             placeholder='ID'
-            value={updatedUser.id}
+            value={updatedUser.ID}
             onChange={(e) =>
-              setUpdateUser({ ...updatedUser, id: e.target.value })
+              setUpdateUser({ ...updatedUser, ID: e.target.value })
             }
             className='mb-2 w-full p-2 border border-gray-300 rounded'
           />
           <input
             type='text'
             placeholder='First Name'
-            value={updatedUser.first_name}
+            value={updatedUser.FirstName}
             onChange={(e) =>
-              setUpdateUser({ ...updatedUser, first_name: e.target.value })
+              setUpdateUser({ ...updatedUser, FirstName: e.target.value })
             }
             className='mb-2 w-full p-2 border border-gray-300 rounded'
           />
           <input
             type='text'
             placeholder='Last Name'
-            value={updatedUser.last_name}
+            value={updatedUser.LastName}
             onChange={(e) =>
-              setUpdateUser({ ...updatedUser, last_name: e.target.value })
+              setUpdateUser({ ...updatedUser, LastName: e.target.value })
             }
             className='mb-2 w-full p-2 border border-gray-300 rounded'
           />
           <input
             type='text'
             placeholder='Email'
-            value={updatedUser.email}
+            value={updatedUser.Email}
             onChange={(e) =>
-              setUpdateUser({ ...updatedUser, email: e.target.value })
+              setUpdateUser({ ...updatedUser, Email: e.target.value })
             }
             className='mb-2 w-full p-2 border border-gray-300 rounded'
           />

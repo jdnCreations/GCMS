@@ -32,8 +32,6 @@ func handleReadiness(w http.ResponseWriter, r *http.Request) {
 }
 
 
-
-
 func respondWithError(w http.ResponseWriter, code int, msg string) {
   type returnErr struct {
     Error string `json:"error"`
@@ -66,9 +64,14 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 }
 
 func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	type User struct {
+		FirstName string;
+		LastName string;
+		Email string;
+	}
 	log.Println("Attempting to create a user")
 	decoder := json.NewDecoder(r.Body)
-	params := models.UserInfo{} 
+	params := User{} 
 	err := decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, 500, err.Error())
@@ -156,8 +159,14 @@ func (cfg *apiConfig) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	type User struct {
+		FirstName string
+		LastName string
+		Email string
+	}
+
 	decoder := json.NewDecoder(r.Body)
-	params := models.UpdateUserInfo{} 
+	params := User{} 
 	err = decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid input data")

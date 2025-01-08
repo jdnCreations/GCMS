@@ -3,14 +3,14 @@ import axios from 'axios';
 import React, { use, useEffect, useState } from 'react';
 
 interface User {
-  ID: string;
+  Id: string;
   FirstName: string;
   LastName: string;
   Email: string;
 }
 
 interface Reservation {
-  ID?: string;
+  Id?: string;
   StartTime: string;
   EndTime: string;
   UserID: string;
@@ -54,10 +54,10 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
       );
       setReservations([response.data, ...reservations]);
       setNewReservation({
-        endTime: '',
-        startTime: '',
-        userID: '',
-        gameID: '',
+        EndTime: '',
+        StartTime: '',
+        UserID: '',
+        GameID: '',
       });
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
@@ -85,22 +85,22 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
         >
           <input
             type='datetime-local'
-            value={newReservation?.start_time}
+            value={newReservation?.StartTime}
             onChange={(e) =>
               setNewReservation({
                 ...newReservation,
-                start_time: e.target.value,
+                StartTime: e.target.value,
               })
             }
             className='mb-2 p-2 border border-gray-300 roudned'
           />
           <input
             type='datetime-local'
-            value={newReservation?.end_time}
+            value={newReservation?.EndTime}
             onChange={(e) =>
               setNewReservation({
                 ...newReservation,
-                end_time: e.target.value,
+                EndTime: e.target.value,
               })
             }
             className='mb-2 p-2 border border-gray-300 roudned'
@@ -111,8 +111,8 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
 
       <div>
         <h1>Reservations</h1>
-        {reservations.map((reservation) => (
-          <div key={reservation.ID}>
+        {reservations?.map((reservation) => (
+          <div key={reservation.Id}>
             <p>{reservation.StartTime}</p>
             <p>{reservation.EndTime}</p>
           </div>
