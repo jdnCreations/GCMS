@@ -94,12 +94,12 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
   };
 
   return (
-    <div className='bg-blue-400 justify-center items-center flex flex-col rounded-lg py-2 px-8'>
+    <div className='bg-blue-100 justify-center items-center flex flex-col rounded-lg py-2 px-8'>
       {/* Create user */}
       <div>
         <form
           onSubmit={createUser}
-          className='mb-6 p-4 bg-blue-100 rounded shadow'
+          className='mb-6 p-4 bg-blue-400 rounded shadow'
         >
           <input
             type='text'

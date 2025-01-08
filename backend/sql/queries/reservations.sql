@@ -15,15 +15,11 @@ VALUES (
 )
 RETURNING *;
 
+-- name: GetAllReservations :many
+SELECT * from reservations;
 
+-- name: GetReservationsForUser :many
+SELECT * from reservations where user_id = $1;
 
-/* -- +goose Up
-CREATE TABLE reservations (
-  id UUID PRIMARY KEY,
-  start_time TIMESTAMP NOT NULL,
-  end_time TIMESTAMP NOT NULL,
-  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  game_id UUID REFERENCES games(id) ON DELETE CASCADE,
-  CHECK (start_time < end_time)
-);
- */
+-- name: GetAllActiveReservations :many
+SELECT * from reservations where end_time > NOW();

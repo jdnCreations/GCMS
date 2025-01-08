@@ -7,12 +7,11 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/go-playground/validator"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -32,9 +31,7 @@ func handleReadiness(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
-func (cfg *apiConfig) handleActiveReservations(w http.ResponseWriter, r *http.Request) {
 
-}
 
 
 func respondWithError(w http.ResponseWriter, code int, msg string) {
@@ -104,6 +101,7 @@ func (cfg *apiConfig) handleGetAllUsers(w http.ResponseWriter, r *http.Request) 
 	log.Println("Attempting to retrieve all users")
 	users, err := cfg.db.GetAllUsers(context.Background())
 	if err != nil {
+		log.Printf("Error: %s", err.Error())
 		respondWithError(w, http.StatusBadRequest, "Could not retrieve users")
 		return
 	}
@@ -181,7 +179,7 @@ func (cfg *apiConfig) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handleGetAllGames(w http.ResponseWriter, r *http.Request) {
-	games, err := cfg.db.GetAllGames(context.Background())
+	games, err := cfg.db.GetAllGames(r.Context())
 	if err != nil {
 		log.Fatal(err)
 		respondWithError(w, 500, "Could not retrieve all games")
@@ -209,7 +207,7 @@ func (cfg *apiConfig) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	game, err := cfg.db.CreateGame(context.Background(), 
+	game, err := cfg.db.CreateGame(r.Context(), 
 	database.CreateGameParams{
 		Title: gameInfo.Title,
 		Copies: gameInfo.Copies,
@@ -231,7 +229,7 @@ func (cfg *apiConfig) handleDeleteGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = cfg.db.DeleteGameById(context.Background(), uuid)
+	err = cfg.db.DeleteGameById(r.Context(), uuid)
 	if err != nil {
 		respondWithError(w, 404, "Game not found")
 		return
@@ -442,10 +440,30 @@ func (cfg *apiConfig) handleAddGenreToGame(w http.ResponseWriter, r *http.Reques
   respondWithJSON(w, 200, gg)
 }
 
+func (cfg *apiConfig) handleActiveReservations(w http.ResponseWriter, r *http.Request) {
+	res, err := cfg.db.GetAllActiveReservations(r.Context())
+  if err != nil {
+    respondWithError(w, 422, "Could not retrieve active reservations")
+    return
+  }
+
+  respondWithJSON(w, 200, res)
+}
+
+func (cfg *apiConfig) handleGetAllReservations(w http.ResponseWriter, r *http.Request) {
+	res, err := cfg.db.GetAllReservations(r.Context())
+  if err != nil {
+    respondWithError(w, 422, "Could not retrieve reservations")
+    return
+  }
+
+  respondWithJSON(w, 200, res)
+}
+
 func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Request) {
   type p struct {
-    StartTime time.Time `json:"start_time"`
-    EndTime time.Time `json:"end_time"`
+    StartTime string `json:"start_time"`
+    EndTime string `json:"end_time"`
     UserID string `json:"user_id"`
     GameID string `json:"game_id"`
   }
@@ -457,9 +475,63 @@ func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Req
     return
   }
 
-//   res, err := cfg.db.CreateReservation(r.Context(), database.CreateReservationParams{
-//     StartTime: ,
-//   })
+	// convert to appropriate types for db ?
+	startTime, err := utils.ConvertToPGTimestamp(params.StartTime)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid start time")
+		return
+	}
+
+	endTime, err := utils.ConvertToPGTimestamp(params.EndTime)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid end time")
+		return
+	}
+	
+	userId, err := utils.ConvertToPGUUID(params.UserID)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid userid")
+		return 
+	}
+	
+	gameId, err := utils.ConvertToPGUUID(params.GameID)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid gameid")
+		return 
+	}
+
+  res, err := cfg.db.CreateReservation(r.Context(), database.CreateReservationParams{
+    StartTime: startTime,
+		EndTime: endTime,
+		UserID: userId,
+		GameID: gameId,
+  })
+	if err != nil {
+		log.Printf("Error: %s", err.Error())
+		respondWithError(w, 422, "Could not create reservation")
+		return
+	}
+
+	respondWithJSON(w, 201, res)
+}
+
+func (cfg *apiConfig) handleGetReservationsForUser(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userID := vars["userID"]
+
+	uuid, err := utils.ConvertToPGUUID(userID) 
+  if err != nil {
+    respondWithError(w, 400, "Invalid ID format")
+    return
+  }
+
+	res, err := cfg.db.GetReservationsForUser(r.Context(), uuid)
+	if err != nil {
+    respondWithError(w, 422, "Could not retrieve reservations")
+    return
+	}
+	
+  respondWithJSON(w, 200, res)
 }
 
 func main() {
@@ -473,13 +545,19 @@ func main() {
 			log.Fatal("PORT environment variable is not set")
 		}
 
-		db, err := pgx.Connect(context.Background(), dbURL)
+		dbpool, err := pgxpool.New(context.Background(), dbURL)
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer db.Close(context.Background())
+		defer dbpool.Close()
 
-		dbQueries := database.New(db)
+		// db, err := pgx.Connect(context.Background(), dbURL)
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
+		// defer db.Close(context.Background())
+
+		dbQueries := database.New(dbpool)
 		apiCfg := apiConfig{}
 		apiCfg.db = dbQueries
 		
@@ -519,7 +597,9 @@ func main() {
 
 		// reservations
     r.HandleFunc("/api/reservations", apiCfg.handleCreateReservation).Methods("POST")
-		r.HandleFunc("/api/reservations", apiCfg.handleActiveReservations).Methods("GET")
+		r.HandleFunc("/api/reservations", apiCfg.handleGetAllReservations).Methods("GET")
+		r.HandleFunc("/api/reservations/active", apiCfg.handleActiveReservations).Methods("GET")
+		r.HandleFunc("/api/reservations/{userID}", apiCfg.handleGetReservationsForUser).Methods("GET")
 
 
 		server.ListenAndServe()
