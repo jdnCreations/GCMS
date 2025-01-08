@@ -8,8 +8,33 @@ package database
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const checkGameReservation = `-- name: CheckGameReservation :one
+SELECT
+  COUNT(*) as reserved_count
+FROM reservations
+WHERE reservations.game_id = $1
+AND reservations.start_time < $2
+AND reservations.end_time > $3
+HAVING
+  COUNT(*) < (SELECT copies from games WHERE id = $1)
+`
+
+type CheckGameReservationParams struct {
+	GameID    pgtype.UUID
+	StartTime pgtype.Timestamp
+	EndTime   pgtype.Timestamp
+}
+
+func (q *Queries) CheckGameReservation(ctx context.Context, arg CheckGameReservationParams) (int64, error) {
+	row := q.db.QueryRow(ctx, checkGameReservation, arg.GameID, arg.StartTime, arg.EndTime)
+	var reserved_count int64
+	err := row.Scan(&reserved_count)
+	return reserved_count, err
+}
 
 const createReservation = `-- name: CreateReservation :one
 INSERT INTO reservations (
@@ -115,24 +140,41 @@ func (q *Queries) GetAllReservations(ctx context.Context) ([]Reservation, error)
 }
 
 const getReservationsForUser = `-- name: GetReservationsForUser :many
-SELECT id, start_time, end_time, user_id, game_id from reservations where user_id = $1
+SELECT reservations.id, reservations.start_time, reservations.end_time, reservations.user_id, reservations.game_id,
+       games.title as game_name
+FROM reservations
+JOIN
+  games
+ON
+  reservations.game_id = games.id
+where user_id = $1
 `
 
-func (q *Queries) GetReservationsForUser(ctx context.Context, userID pgtype.UUID) ([]Reservation, error) {
+type GetReservationsForUserRow struct {
+	ID        uuid.UUID
+	StartTime pgtype.Timestamp
+	EndTime   pgtype.Timestamp
+	UserID    pgtype.UUID
+	GameID    pgtype.UUID
+	GameName  string
+}
+
+func (q *Queries) GetReservationsForUser(ctx context.Context, userID pgtype.UUID) ([]GetReservationsForUserRow, error) {
 	rows, err := q.db.Query(ctx, getReservationsForUser, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Reservation
+	var items []GetReservationsForUserRow
 	for rows.Next() {
-		var i Reservation
+		var i GetReservationsForUserRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.StartTime,
 			&i.EndTime,
 			&i.UserID,
 			&i.GameID,
+			&i.GameName,
 		); err != nil {
 			return nil, err
 		}

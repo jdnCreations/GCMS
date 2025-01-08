@@ -471,10 +471,10 @@ func (cfg *apiConfig) handleGetAllReservations(w http.ResponseWriter, r *http.Re
 
 func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Request) {
   type p struct {
-    StartTime string `json:"start_time"`
-    EndTime string `json:"end_time"`
-    UserID string `json:"user_id"`
-    GameID string `json:"game_id"`
+    StartTime string
+    EndTime string
+    UserID string
+    GameID string
   }
   params := p{}
   decoder := json.NewDecoder(r.Body)
@@ -483,6 +483,9 @@ func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Req
     respondWithError(w, http.StatusBadRequest, "invalid request payload")
     return
   }
+
+	log.Printf(params.StartTime)
+	log.Printf(params.GameID)
 
 	// convert to appropriate types for db ?
 	startTime, err := utils.ConvertToPGTimestamp(params.StartTime)
@@ -541,6 +544,10 @@ func (cfg *apiConfig) handleGetReservationsForUser(w http.ResponseWriter, r *htt
 	}
 	
   respondWithJSON(w, 200, res)
+}
+
+func (cfg *apiConfig) handleCheckGameAvailable(w http.ResponseWriter, r *http.Request) {
+	
 }
 
 func main() {
@@ -608,6 +615,7 @@ func main() {
     r.HandleFunc("/api/reservations", apiCfg.handleCreateReservation).Methods("POST")
 		r.HandleFunc("/api/reservations", apiCfg.handleGetAllReservations).Methods("GET")
 		r.HandleFunc("/api/reservations/active", apiCfg.handleActiveReservations).Methods("GET")
+		r.HandleFunc("/api/reservations/check/{gameID}", apiCfg.handleCheckGameAvailable).Methods("GET")
 		r.HandleFunc("/api/reservations/{userID}", apiCfg.handleGetReservationsForUser).Methods("GET")
 
 

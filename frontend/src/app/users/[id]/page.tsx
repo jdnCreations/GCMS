@@ -3,18 +3,25 @@ import axios from 'axios';
 import React, { use, useEffect, useState } from 'react';
 
 interface User {
-  Id: string;
+  ID: string;
   FirstName: string;
   LastName: string;
   Email: string;
 }
 
 interface Reservation {
-  Id?: string;
+  ID?: string;
   StartTime: string;
   EndTime: string;
   UserID: string;
   GameID: string;
+  GameName?: string;
+}
+
+interface Game {
+  ID: string;
+  Title: string;
+  Copies: number;
 }
 
 function Page({ params }: { params: Promise<{ id: string }> }) {
@@ -22,6 +29,7 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [user, setUser] = useState<User>();
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [games, setGames] = useState<Game[]>([]);
   const [newReservation, setNewReservation] = useState<Reservation>({
     StartTime: '',
     EndTime: '',
@@ -32,12 +40,15 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const [userResponse, reservationsResponse] = await Promise.all([
-          axios.get(`${apiUrl}/api/users/${id}`),
-          axios.get(`${apiUrl}/api/reservations/${id}`),
-        ]);
+        const [userResponse, reservationsResponse, gamesResponse] =
+          await Promise.all([
+            axios.get(`${apiUrl}/api/users/${id}`),
+            axios.get(`${apiUrl}/api/reservations/${id}`),
+            axios.get(`${apiUrl}/api/games`),
+          ]);
         setUser(userResponse.data);
         setReservations(reservationsResponse.data);
+        setGames(gamesResponse.data);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -45,18 +56,26 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
     fetchUserData();
   }, [id, apiUrl]);
 
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  console.log(timezone); // Example: "America/New_York"
+
   const createReservation = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       const response = await axios.post(
-        `${apiUrl}/api/reservation`,
+        `${apiUrl}/api/reservations`,
         newReservation
       );
-      setReservations([response.data, ...reservations]);
+      const game = games.find((g) => g.ID === newReservation.GameID);
+      const updatedReservation = {
+        ...response.data,
+        GameName: game ? game.Title : 'Unknown',
+      };
+      setReservations([updatedReservation, ...reservations]);
       setNewReservation({
-        EndTime: '',
         StartTime: '',
-        UserID: '',
+        EndTime: '',
+        UserID: id,
         GameID: '',
       });
     } catch (error) {
@@ -67,8 +86,6 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
       }
     }
   };
-
-  console.log(reservations);
 
   return (
     <div>
@@ -92,7 +109,7 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
                 StartTime: e.target.value,
               })
             }
-            className='mb-2 p-2 border border-gray-300 roudned'
+            className='mb-2 p-2 border border-gray-300 rounded'
           />
           <input
             type='datetime-local'
@@ -105,6 +122,23 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
             }
             className='mb-2 p-2 border border-gray-300 roudned'
           />
+          <select
+            className='mb-2 p-2 border text-gray-900 border-gray-300 rounded'
+            name='game'
+            id='game'
+            onChange={(e) => {
+              e.preventDefault();
+              const selectedGameId = e.target.value;
+              setNewReservation({ ...newReservation, GameID: selectedGameId });
+            }}
+          >
+            <option value=''>Select a Game</option>
+            {games.map((g) => (
+              <option key={g.ID} value={g.ID}>
+                {g.Title}
+              </option>
+            ))}
+          </select>
           <button type='submit'>Create Reservation</button>
         </form>
       </div>
@@ -112,9 +146,20 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
       <div>
         <h1>Reservations</h1>
         {reservations?.map((reservation) => (
-          <div key={reservation.Id}>
-            <p>{reservation.StartTime}</p>
-            <p>{reservation.EndTime}</p>
+          <div key={reservation.ID}>
+            <p>{reservation.GameName}</p>
+            <p>
+              {new Date(reservation.StartTime).toLocaleString('en-AU', {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })}
+            </p>
+            <p>
+              {new Date(reservation.EndTime).toLocaleString('en-AU', {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })}
+            </p>
           </div>
         ))}
       </div>

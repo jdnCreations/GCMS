@@ -19,7 +19,24 @@ RETURNING *;
 SELECT * from reservations;
 
 -- name: GetReservationsForUser :many
-SELECT * from reservations where user_id = $1;
+SELECT reservations.*,
+       games.title as game_name
+FROM reservations
+JOIN
+  games
+ON
+  reservations.game_id = games.id
+where user_id = $1;
 
 -- name: GetAllActiveReservations :many
 SELECT * from reservations where end_time > NOW();
+
+-- name: CheckGameReservation :one
+SELECT
+  COUNT(*) as reserved_count
+FROM reservations
+WHERE reservations.game_id = $1
+AND reservations.start_time < $2
+AND reservations.end_time > $3
+HAVING
+  COUNT(*) < (SELECT copies from games WHERE id = $1);
