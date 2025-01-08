@@ -186,14 +186,14 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
         </form>
       </div>
 
-      <div className='flex flex-col gap-4 justify-center items-center space-y-4'>
+      <div className='flex flex-col gap-4 justify-center items-center space-y-4 bg-cyan-800 w-full rounded'>
         <h1 className='font-bold text-3xl py-4'>Users</h1>
         {users.map((user) => (
           <div key={user.ID} className='flex gap-2 w-full justify-between'>
             <CardComponent card={user} />
             <button
               onClick={() => deleteUser(user.ID)}
-              className='bg-orange-400'
+              className='bg-orange-400 rounded p-2'
             >
               Delete User
             </button>
