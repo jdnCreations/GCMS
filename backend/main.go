@@ -550,6 +550,25 @@ func (cfg *apiConfig) handleCheckGameAvailable(w http.ResponseWriter, r *http.Re
 	
 }
 
+func (cfg *apiConfig) handleDeleteReservation(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	resID:= vars["id"]
+
+	uuid, err := uuid.Parse(resID)
+  if err != nil {
+    respondWithError(w, 400, "Invalid ID format")
+    return
+  }
+
+	err = cfg.db.DeleteReservation(r.Context(), uuid)
+	if err != nil {
+		respondWithError(w, 422, "Could not delete reservation")
+		return
+	}
+
+	respondWithJSON(w, 200, "")
+}
+
 func main() {
     err := godotenv.Load(".env")
     if err != nil {
@@ -616,6 +635,7 @@ func main() {
 		r.HandleFunc("/api/reservations", apiCfg.handleGetAllReservations).Methods("GET")
 		r.HandleFunc("/api/reservations/active", apiCfg.handleActiveReservations).Methods("GET")
 		r.HandleFunc("/api/reservations/check/{gameID}", apiCfg.handleCheckGameAvailable).Methods("GET")
+		r.HandleFunc("/api/reservations/{id}", apiCfg.handleDeleteReservation).Methods("DELETE")
 		r.HandleFunc("/api/reservations/{userID}", apiCfg.handleGetReservationsForUser).Methods("GET")
 
 

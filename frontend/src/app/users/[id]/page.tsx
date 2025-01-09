@@ -1,4 +1,5 @@
 'use client';
+import ReservationComponent from '@/components/ReservationComponent';
 import axios from 'axios';
 import React, { use, useEffect, useState } from 'react';
 
@@ -71,7 +72,7 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
         ...response.data,
         GameName: game ? game.Title : 'Unknown',
       };
-      setReservations([updatedReservation, ...reservations]);
+      setReservations([updatedReservation, ...(reservations || [])]);
       setNewReservation({
         StartTime: '',
         EndTime: '',
@@ -84,6 +85,15 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
       } else {
         console.error('Error creating reservation', error);
       }
+    }
+  };
+
+  const deleteReservation = async (id: string) => {
+    try {
+      await axios.delete(`${apiUrl}/api/reservations/${id}`);
+      setReservations(reservations.filter((res) => res.ID !== id));
+    } catch (error) {
+      console.error('Error deleting reservation:', error);
     }
   };
 
@@ -143,24 +153,14 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
         </form>
       </div>
 
-      <div>
-        <h1>Reservations</h1>
+      <div className='flex flex-col items-center gap-2'>
+        <h1 className='font-bold text-2xl'>Reservations</h1>
         {reservations?.map((reservation) => (
-          <div key={reservation.ID}>
-            <p>{reservation.GameName}</p>
-            <p>
-              {new Date(reservation.StartTime).toLocaleString('en-AU', {
-                dateStyle: 'medium',
-                timeStyle: 'short',
-              })}
-            </p>
-            <p>
-              {new Date(reservation.EndTime).toLocaleString('en-AU', {
-                dateStyle: 'medium',
-                timeStyle: 'short',
-              })}
-            </p>
-          </div>
+          <ReservationComponent
+            key={reservation.ID}
+            reservation={reservation}
+            onDelete={deleteReservation}
+          />
         ))}
       </div>
     </div>

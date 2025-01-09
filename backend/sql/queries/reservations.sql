@@ -40,3 +40,6 @@ AND reservations.start_time < $2
 AND reservations.end_time > $3
 HAVING
   COUNT(*) < (SELECT copies from games WHERE id = $1);
+
+-- name: DeleteReservation :exec
+DELETE FROM reservations where id = $1;

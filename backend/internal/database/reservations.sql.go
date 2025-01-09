@@ -79,6 +79,15 @@ func (q *Queries) CreateReservation(ctx context.Context, arg CreateReservationPa
 	return i, err
 }
 
+const deleteReservation = `-- name: DeleteReservation :exec
+DELETE FROM reservations where id = $1
+`
+
+func (q *Queries) DeleteReservation(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteReservation, id)
+	return err
+}
+
 const getAllActiveReservations = `-- name: GetAllActiveReservations :many
 SELECT id, start_time, end_time, user_id, game_id from reservations where end_time > NOW()
 `
