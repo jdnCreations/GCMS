@@ -12,6 +12,7 @@ interface User {
 
 interface Reservation {
   ID?: string;
+  Date: string;
   StartTime: string;
   EndTime: string;
   UserID: string;
@@ -32,6 +33,7 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [newReservation, setNewReservation] = useState<Reservation>({
+    Date: '',
     StartTime: '',
     EndTime: '',
     UserID: id,
@@ -62,6 +64,7 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
 
   const createReservation = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    console.log(newReservation);
     try {
       const response = await axios.post(
         `${apiUrl}/api/reservations`,
@@ -74,6 +77,7 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
       };
       setReservations([updatedReservation, ...(reservations || [])]);
       setNewReservation({
+        Date: '',
         StartTime: '',
         EndTime: '',
         UserID: id,
@@ -98,20 +102,38 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
   };
 
   return (
-    <div>
+    <div className='flex flex-col items-center gap-4'>
       <div>
         <h1>User Info</h1>
         <p>
           {user?.FirstName} {user?.LastName}
         </p>
       </div>
-      <div>
+      <div className='flex flex-col'>
         <form
-          className='mb-6 p-4 bg-blue-400 rounded shadow'
+          className='mb-6 p-4 bg-blue-400 rounded shadow flex flex-col'
           onSubmit={createReservation}
         >
+          <h2 className='font-bold pb-2'>
+            Create a reservation for {user?.FirstName}
+          </h2>
+          <label htmlFor='date'>Reservation Date</label>
           <input
-            type='datetime-local'
+            name='date'
+            type='date'
+            value={newReservation?.Date}
+            onChange={(e) =>
+              setNewReservation({
+                ...newReservation,
+                Date: e.target.value,
+              })
+            }
+            className='mb-2 p-2 border border-gra-300 rounded text-gray-800'
+          />
+          <label htmlFor='startTime'>Start time</label>
+          <input
+            name='startTime'
+            type='time'
             value={newReservation?.StartTime}
             onChange={(e) =>
               setNewReservation({
@@ -119,10 +141,12 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
                 StartTime: e.target.value,
               })
             }
-            className='mb-2 p-2 border border-gray-300 rounded'
+            className='mb-2 p-2 border border-gray-300 rounded text-gray-800'
           />
+
+          <label htmlFor='endTime'>End time</label>
           <input
-            type='datetime-local'
+            type='time'
             value={newReservation?.EndTime}
             onChange={(e) =>
               setNewReservation({
@@ -130,8 +154,9 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
                 EndTime: e.target.value,
               })
             }
-            className='mb-2 p-2 border border-gray-300 roudned'
+            className='mb-2 p-2 border border-gray-300 roudned text-gray-800'
           />
+          <label htmlFor='game'>Game</label>
           <select
             className='mb-2 p-2 border text-gray-900 border-gray-300 rounded'
             name='game'

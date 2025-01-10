@@ -14,31 +14,31 @@ import (
 
 const checkGameReservation = `-- name: CheckGameReservation :one
 SELECT
-  COUNT(*) as reserved_count
+  COALESCE((SELECT copies FROM games WHERE game_id = $1), 0) - COALESCE(COUNT(*), 0) AS available_copies
 FROM reservations
 WHERE reservations.game_id = $1
 AND reservations.start_time < $2
 AND reservations.end_time > $3
-HAVING
-  COUNT(*) < (SELECT copies from games WHERE id = $1)
+GROUP BY reservations.game_id
 `
 
 type CheckGameReservationParams struct {
 	GameID    pgtype.UUID
-	StartTime pgtype.Timestamp
-	EndTime   pgtype.Timestamp
+	StartTime pgtype.Time
+	EndTime   pgtype.Time
 }
 
-func (q *Queries) CheckGameReservation(ctx context.Context, arg CheckGameReservationParams) (int64, error) {
+func (q *Queries) CheckGameReservation(ctx context.Context, arg CheckGameReservationParams) (int32, error) {
 	row := q.db.QueryRow(ctx, checkGameReservation, arg.GameID, arg.StartTime, arg.EndTime)
-	var reserved_count int64
-	err := row.Scan(&reserved_count)
-	return reserved_count, err
+	var available_copies int32
+	err := row.Scan(&available_copies)
+	return available_copies, err
 }
 
 const createReservation = `-- name: CreateReservation :one
 INSERT INTO reservations (
   id, 
+  res_date,
   start_time, 
   end_time, 
   user_id, 
@@ -49,20 +49,23 @@ VALUES (
   $1,
   $2,
   $3,
-  $4
+  $4,
+  $5
 )
-RETURNING id, start_time, end_time, user_id, game_id
+RETURNING id, res_date, start_time, end_time, user_id, game_id
 `
 
 type CreateReservationParams struct {
-	StartTime pgtype.Timestamp
-	EndTime   pgtype.Timestamp
+	ResDate   pgtype.Date
+	StartTime pgtype.Time
+	EndTime   pgtype.Time
 	UserID    pgtype.UUID
 	GameID    pgtype.UUID
 }
 
 func (q *Queries) CreateReservation(ctx context.Context, arg CreateReservationParams) (Reservation, error) {
 	row := q.db.QueryRow(ctx, createReservation,
+		arg.ResDate,
 		arg.StartTime,
 		arg.EndTime,
 		arg.UserID,
@@ -71,6 +74,7 @@ func (q *Queries) CreateReservation(ctx context.Context, arg CreateReservationPa
 	var i Reservation
 	err := row.Scan(
 		&i.ID,
+		&i.ResDate,
 		&i.StartTime,
 		&i.EndTime,
 		&i.UserID,
@@ -89,7 +93,7 @@ func (q *Queries) DeleteReservation(ctx context.Context, id uuid.UUID) error {
 }
 
 const getAllActiveReservations = `-- name: GetAllActiveReservations :many
-SELECT id, start_time, end_time, user_id, game_id from reservations where end_time > NOW()
+SELECT id, res_date, start_time, end_time, user_id, game_id from reservations where end_time > NOW()
 `
 
 func (q *Queries) GetAllActiveReservations(ctx context.Context) ([]Reservation, error) {
@@ -103,6 +107,7 @@ func (q *Queries) GetAllActiveReservations(ctx context.Context) ([]Reservation, 
 		var i Reservation
 		if err := rows.Scan(
 			&i.ID,
+			&i.ResDate,
 			&i.StartTime,
 			&i.EndTime,
 			&i.UserID,
@@ -119,7 +124,7 @@ func (q *Queries) GetAllActiveReservations(ctx context.Context) ([]Reservation, 
 }
 
 const getAllReservations = `-- name: GetAllReservations :many
-SELECT id, start_time, end_time, user_id, game_id from reservations
+SELECT id, res_date, start_time, end_time, user_id, game_id from reservations
 `
 
 func (q *Queries) GetAllReservations(ctx context.Context) ([]Reservation, error) {
@@ -133,6 +138,7 @@ func (q *Queries) GetAllReservations(ctx context.Context) ([]Reservation, error)
 		var i Reservation
 		if err := rows.Scan(
 			&i.ID,
+			&i.ResDate,
 			&i.StartTime,
 			&i.EndTime,
 			&i.UserID,
@@ -149,7 +155,7 @@ func (q *Queries) GetAllReservations(ctx context.Context) ([]Reservation, error)
 }
 
 const getReservationsForUser = `-- name: GetReservationsForUser :many
-SELECT reservations.id, reservations.start_time, reservations.end_time, reservations.user_id, reservations.game_id,
+SELECT reservations.id, reservations.res_date, reservations.start_time, reservations.end_time, reservations.user_id, reservations.game_id,
        games.title as game_name
 FROM reservations
 JOIN
@@ -161,8 +167,9 @@ where user_id = $1
 
 type GetReservationsForUserRow struct {
 	ID        uuid.UUID
-	StartTime pgtype.Timestamp
-	EndTime   pgtype.Timestamp
+	ResDate   pgtype.Date
+	StartTime pgtype.Time
+	EndTime   pgtype.Time
 	UserID    pgtype.UUID
 	GameID    pgtype.UUID
 	GameName  string
@@ -179,6 +186,7 @@ func (q *Queries) GetReservationsForUser(ctx context.Context, userID pgtype.UUID
 		var i GetReservationsForUserRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.ResDate,
 			&i.StartTime,
 			&i.EndTime,
 			&i.UserID,

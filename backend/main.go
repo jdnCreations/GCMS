@@ -471,6 +471,7 @@ func (cfg *apiConfig) handleGetAllReservations(w http.ResponseWriter, r *http.Re
 
 func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Request) {
   type p struct {
+    Date string
     StartTime string
     EndTime string
     UserID string
@@ -484,17 +485,21 @@ func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Req
     return
   }
 
-	log.Printf(params.StartTime)
-	log.Printf(params.GameID)
-
 	// convert to appropriate types for db ?
-	startTime, err := utils.ConvertToPGTimestamp(params.StartTime)
+  resDate, err := utils.ConvertToPGDate(params.Date)
+  if err != nil {
+    respondWithError(w, http.StatusBadRequest, "invalid reservation date")
+    return
+  }
+
+
+	startTime, err := utils.ConvertToPGTime(params.StartTime)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "invalid start time")
 		return
 	}
-
-	endTime, err := utils.ConvertToPGTimestamp(params.EndTime)
+  
+  endTime, err := utils.ConvertToPGTime(params.EndTime)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "invalid end time")
 		return
@@ -511,8 +516,9 @@ func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Req
 		respondWithError(w, http.StatusBadRequest, "invalid gameid")
 		return 
 	}
-
+	
   res, err := cfg.db.CreateReservation(r.Context(), database.CreateReservationParams{
+    ResDate: resDate,
     StartTime: startTime,
 		EndTime: endTime,
 		UserID: userId,
@@ -542,12 +548,62 @@ func (cfg *apiConfig) handleGetReservationsForUser(w http.ResponseWriter, r *htt
     respondWithError(w, 422, "Could not retrieve reservations")
     return
 	}
+
+  log.Println(res)
 	
   respondWithJSON(w, 200, res)
 }
 
 func (cfg *apiConfig) handleCheckGameAvailable(w http.ResponseWriter, r *http.Request) {
-	
+
+	vars := mux.Vars(r)
+	gameId := vars["gameID"]
+
+	uuid, err := utils.ConvertToPGUUID(gameId)
+	if err != nil {
+		respondWithError(w, 422, "Invalid ID format")
+		return
+	}
+
+	type p struct {
+    StartTime string
+    EndTime string
+    UserID string
+  }
+  params := p{}
+  decoder := json.NewDecoder(r.Body)
+  err = decoder.Decode(&params)
+  if err != nil {
+    respondWithError(w, http.StatusBadRequest, "invalid request payload")
+    return
+  }
+
+	pgStartTime, err := utils.ConvertToPGTime(params.StartTime);
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid start time")
+		return
+	}
+
+	pgEndTime, err := utils.ConvertToPGTime(params.EndTime);
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid end time")
+		return
+	}
+
+	num, err := cfg.db.CheckGameReservation(r.Context(), database.CheckGameReservationParams{
+		GameID: uuid,
+		StartTime: pgStartTime,
+		EndTime: pgEndTime,
+	})
+	if err != nil {
+		respondWithError(w, 422, "not enough copies")
+		return
+	}
+
+	if num > 0 {
+		respondWithJSON(w, 200, "copy is available")
+	}
+	respondWithError(w, 422, "not enough copies")
 }
 
 func (cfg *apiConfig) handleDeleteReservation(w http.ResponseWriter, r *http.Request) {
@@ -585,12 +641,6 @@ func main() {
 			log.Fatal(err)
 		}
 		defer dbpool.Close()
-
-		// db, err := pgx.Connect(context.Background(), dbURL)
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
-		// defer db.Close(context.Background())
 
 		dbQueries := database.New(dbpool)
 		apiCfg := apiConfig{}

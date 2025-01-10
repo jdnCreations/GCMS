@@ -27,8 +27,9 @@ type Genre struct {
 
 type Reservation struct {
 	ID        uuid.UUID
-	StartTime pgtype.Timestamp
-	EndTime   pgtype.Timestamp
+	ResDate   pgtype.Date
+	StartTime pgtype.Time
+	EndTime   pgtype.Time
 	UserID    pgtype.UUID
 	GameID    pgtype.UUID
 }

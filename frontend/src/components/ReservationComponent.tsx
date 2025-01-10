@@ -1,27 +1,32 @@
 interface Reservation {
   ID?: string;
-  StartTime: string;
-  EndTime: string;
+  ResDate: string;
+  StartTime: {
+    Microseconds: number;
+    Valid: boolean;
+  };
+  EndTime: {
+    Microseconds: number;
+    Valid: boolean;
+  };
   UserID: string;
   GameID: string;
   GameName?: string;
 }
 
-const calculateReservationLength = (start: string, end: string) => {
-  const startDate = new Date(start).getTime();
-  const endDate = new Date(end).getTime();
-  const diffTime = endDate - startDate;
+const calculateReservationLength = (start: number, end: number) => {
+  const startMilli = start / 1000;
+  const endMilli = end / 1000;
 
-  const totalDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const duration = endMilli - startMilli;
 
-  // Breakdown into days, hours, and minutes
-  const days = totalDays;
-  const hours = Math.floor(
-    (diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
-  );
-  const minutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
+  const hours = Math.floor(duration / 3600000);
+  const minutes = Math.floor((duration % 3600000) / 60000);
 
-  return { days, hours, minutes };
+  return {
+    hours,
+    minutes,
+  };
 };
 
 const ReservationComponent: React.FC<{
@@ -37,30 +42,43 @@ const ReservationComponent: React.FC<{
   };
 
   const reservationLength = calculateReservationLength(
-    reservation.StartTime,
-    reservation.EndTime
+    reservation.StartTime.Microseconds,
+    reservation.EndTime.Microseconds
   );
+
+  const formatTime = (microseconds: number) => {
+    const milli = microseconds / 1000;
+    const date = new Date(milli);
+    const hours = date.getUTCHours();
+    const minutes = date.getUTCMinutes();
+
+    return new Date(date.setHours(hours, minutes)).toLocaleTimeString('en-AU', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+
+    return date.toLocaleDateString('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
 
   return (
     <div className='max-w-sm mx-auto bg-white shadow-lg rounded-lg overflow-hidden border border-gray-200 text-black p-2'>
       <h1 className='text-gray-800 font-bold'>{reservation?.GameName}</h1>
       <p className='text-gray-600'>
-        Your reservation is for {reservationLength.days} days,{' '}
-        {reservationLength.hours} hours, and {reservationLength.minutes}{' '}
-        minutes.
+        Your reservation is for {reservationLength.hours} hours, and{' '}
+        {reservationLength.minutes} minutes.
       </p>
-      <p>
-        {new Date(reservation.StartTime).toLocaleString('en-AU', {
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        })}
-      </p>
-      <p>
-        {new Date(reservation.EndTime).toLocaleString('en-AU', {
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        })}
-      </p>
+      <p>{formatDate(reservation.ResDate)}</p>
+      <p>{formatTime(reservation.StartTime.Microseconds)}</p>
+      <p>{formatTime(reservation.EndTime.Microseconds)}</p>
       <button
         onClick={handleDelete}
         className='bg-red-800 text-white rounded p-2 font-bold'
