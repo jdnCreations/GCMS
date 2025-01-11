@@ -10,11 +10,27 @@ interface User {
   Email: string;
 }
 
-interface Reservation {
+interface NewReservation {
   ID?: string;
   Date: string;
   StartTime: string;
   EndTime: string;
+  UserID: string;
+  GameID: string;
+  GameName?: string;
+}
+
+interface Reservation {
+  ID?: string;
+  ResDate: string;
+  StartTime: {
+    Microseconds: number;
+    Valid: boolean;
+  };
+  EndTime: {
+    Microseconds: number;
+    Valid: boolean;
+  };
   UserID: string;
   GameID: string;
   GameName?: string;
@@ -32,7 +48,7 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
   const [user, setUser] = useState<User>();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [games, setGames] = useState<Game[]>([]);
-  const [newReservation, setNewReservation] = useState<Reservation>({
+  const [newReservation, setNewReservation] = useState<NewReservation>({
     Date: '',
     StartTime: '',
     EndTime: '',
