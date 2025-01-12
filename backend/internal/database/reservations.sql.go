@@ -52,7 +52,7 @@ VALUES (
   $4,
   $5
 )
-RETURNING id, res_date, start_time, end_time, user_id, game_id
+RETURNING id, res_date, start_time, end_time, user_id, game_id, active
 `
 
 type CreateReservationParams struct {
@@ -79,6 +79,7 @@ func (q *Queries) CreateReservation(ctx context.Context, arg CreateReservationPa
 		&i.EndTime,
 		&i.UserID,
 		&i.GameID,
+		&i.Active,
 	)
 	return i, err
 }
@@ -93,7 +94,7 @@ func (q *Queries) DeleteReservation(ctx context.Context, id uuid.UUID) error {
 }
 
 const getAllActiveReservations = `-- name: GetAllActiveReservations :many
-SELECT id, res_date, start_time, end_time, user_id, game_id from reservations where end_time > NOW()
+SELECT id, res_date, start_time, end_time, user_id, game_id, active from reservations where end_time > NOW()
 `
 
 func (q *Queries) GetAllActiveReservations(ctx context.Context) ([]Reservation, error) {
@@ -112,6 +113,7 @@ func (q *Queries) GetAllActiveReservations(ctx context.Context) ([]Reservation, 
 			&i.EndTime,
 			&i.UserID,
 			&i.GameID,
+			&i.Active,
 		); err != nil {
 			return nil, err
 		}
@@ -124,7 +126,7 @@ func (q *Queries) GetAllActiveReservations(ctx context.Context) ([]Reservation, 
 }
 
 const getAllReservations = `-- name: GetAllReservations :many
-SELECT id, res_date, start_time, end_time, user_id, game_id from reservations
+SELECT id, res_date, start_time, end_time, user_id, game_id, active from reservations
 `
 
 func (q *Queries) GetAllReservations(ctx context.Context) ([]Reservation, error) {
@@ -143,6 +145,39 @@ func (q *Queries) GetAllReservations(ctx context.Context) ([]Reservation, error)
 			&i.EndTime,
 			&i.UserID,
 			&i.GameID,
+			&i.Active,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getExpiredReservations = `-- name: GetExpiredReservations :many
+SELECT id, res_date, start_time, end_time, user_id, game_id, active from reservations where end_time < NOW()::TIME AND active = true
+`
+
+func (q *Queries) GetExpiredReservations(ctx context.Context) ([]Reservation, error) {
+	rows, err := q.db.Query(ctx, getExpiredReservations)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Reservation
+	for rows.Next() {
+		var i Reservation
+		if err := rows.Scan(
+			&i.ID,
+			&i.ResDate,
+			&i.StartTime,
+			&i.EndTime,
+			&i.UserID,
+			&i.GameID,
+			&i.Active,
 		); err != nil {
 			return nil, err
 		}
@@ -155,7 +190,7 @@ func (q *Queries) GetAllReservations(ctx context.Context) ([]Reservation, error)
 }
 
 const getReservationsForUser = `-- name: GetReservationsForUser :many
-SELECT reservations.id, reservations.res_date, reservations.start_time, reservations.end_time, reservations.user_id, reservations.game_id,
+SELECT reservations.id, reservations.res_date, reservations.start_time, reservations.end_time, reservations.user_id, reservations.game_id, reservations.active,
        games.title as game_name
 FROM reservations
 JOIN
@@ -172,6 +207,7 @@ type GetReservationsForUserRow struct {
 	EndTime   pgtype.Time
 	UserID    pgtype.UUID
 	GameID    pgtype.UUID
+	Active    bool
 	GameName  string
 }
 
@@ -191,6 +227,7 @@ func (q *Queries) GetReservationsForUser(ctx context.Context, userID pgtype.UUID
 			&i.EndTime,
 			&i.UserID,
 			&i.GameID,
+			&i.Active,
 			&i.GameName,
 		); err != nil {
 			return nil, err
@@ -201,4 +238,27 @@ func (q *Queries) GetReservationsForUser(ctx context.Context, userID pgtype.UUID
 		return nil, err
 	}
 	return items, nil
+}
+
+const setReservationInactive = `-- name: SetReservationInactive :one
+UPDATE reservations
+SET active = false
+WHERE id = $1 AND
+end_time < NOW()::TIME
+RETURNING id, res_date, start_time, end_time, user_id, game_id, active
+`
+
+func (q *Queries) SetReservationInactive(ctx context.Context, id uuid.UUID) (Reservation, error) {
+	row := q.db.QueryRow(ctx, setReservationInactive, id)
+	var i Reservation
+	err := row.Scan(
+		&i.ID,
+		&i.ResDate,
+		&i.StartTime,
+		&i.EndTime,
+		&i.UserID,
+		&i.GameID,
+		&i.Active,
+	)
+	return i, err
 }

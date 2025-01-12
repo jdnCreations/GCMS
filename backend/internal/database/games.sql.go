@@ -12,13 +12,14 @@ import (
 )
 
 const createGame = `-- name: CreateGame :one
-INSERT INTO games (id, title, copies)
+INSERT INTO games (id, title, copies, current_copies)
 VALUES (
   gen_random_uuid(),
   $1,
+  $2,
   $2
 )
-RETURNING id, title, copies
+RETURNING id, title, copies, current_copies
 `
 
 type CreateGameParams struct {
@@ -29,8 +30,24 @@ type CreateGameParams struct {
 func (q *Queries) CreateGame(ctx context.Context, arg CreateGameParams) (Game, error) {
 	row := q.db.QueryRow(ctx, createGame, arg.Title, arg.Copies)
 	var i Game
-	err := row.Scan(&i.ID, &i.Title, &i.Copies)
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Copies,
+		&i.CurrentCopies,
+	)
 	return i, err
+}
+
+const decCurrentCopies = `-- name: DecCurrentCopies :exec
+UPDATE games
+SET current_copies = current_copies - 1
+WHERE id = $1 AND current_copies  > 0
+`
+
+func (q *Queries) DecCurrentCopies(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, decCurrentCopies, id)
+	return err
 }
 
 const deleteGameById = `-- name: DeleteGameById :exec
@@ -43,7 +60,7 @@ func (q *Queries) DeleteGameById(ctx context.Context, id uuid.UUID) error {
 }
 
 const getAllGames = `-- name: GetAllGames :many
-SELECT id, title, copies from games
+SELECT id, title, copies, current_copies from games
 `
 
 // maybe add functionality to pass in what to sort by?
@@ -56,7 +73,12 @@ func (q *Queries) GetAllGames(ctx context.Context) ([]Game, error) {
 	var items []Game
 	for rows.Next() {
 		var i Game
-		if err := rows.Scan(&i.ID, &i.Title, &i.Copies); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Copies,
+			&i.CurrentCopies,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -67,15 +89,42 @@ func (q *Queries) GetAllGames(ctx context.Context) ([]Game, error) {
 	return items, nil
 }
 
+const getCurrentCopies = `-- name: GetCurrentCopies :one
+SELECT current_copies from games where id = $1
+`
+
+func (q *Queries) GetCurrentCopies(ctx context.Context, id uuid.UUID) (int16, error) {
+	row := q.db.QueryRow(ctx, getCurrentCopies, id)
+	var current_copies int16
+	err := row.Scan(&current_copies)
+	return current_copies, err
+}
+
 const getGameById = `-- name: GetGameById :one
-SELECT id, title, copies FROM games where id = $1
+SELECT id, title, copies, current_copies FROM games where id = $1
 `
 
 func (q *Queries) GetGameById(ctx context.Context, id uuid.UUID) (Game, error) {
 	row := q.db.QueryRow(ctx, getGameById, id)
 	var i Game
-	err := row.Scan(&i.ID, &i.Title, &i.Copies)
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Copies,
+		&i.CurrentCopies,
+	)
 	return i, err
+}
+
+const incCurrentCopies = `-- name: IncCurrentCopies :exec
+UPDATE games
+SET current_copies = current_copies + 1
+WHERE id = $1 AND current_copies < copies
+`
+
+func (q *Queries) IncCurrentCopies(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, incCurrentCopies, id)
+	return err
 }
 
 const updateGame = `-- name: UpdateGame :one
@@ -98,9 +147,15 @@ type UpdateGameParams struct {
 	ID      uuid.UUID
 }
 
-func (q *Queries) UpdateGame(ctx context.Context, arg UpdateGameParams) (Game, error) {
+type UpdateGameRow struct {
+	ID     uuid.UUID
+	Title  string
+	Copies int16
+}
+
+func (q *Queries) UpdateGame(ctx context.Context, arg UpdateGameParams) (UpdateGameRow, error) {
 	row := q.db.QueryRow(ctx, updateGame, arg.Column1, arg.Column2, arg.ID)
-	var i Game
+	var i UpdateGameRow
 	err := row.Scan(&i.ID, &i.Title, &i.Copies)
 	return i, err
 }

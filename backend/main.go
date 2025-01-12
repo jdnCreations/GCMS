@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-playground/validator"
 	"github.com/google/uuid"
@@ -484,38 +485,51 @@ func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Req
     respondWithError(w, http.StatusBadRequest, "invalid request payload")
     return
   }
-
+  
+  
 	// convert to appropriate types for db ?
   resDate, err := utils.ConvertToPGDate(params.Date)
   if err != nil {
     respondWithError(w, http.StatusBadRequest, "invalid reservation date")
     return
   }
-
-
+  
+  
 	startTime, err := utils.ConvertToPGTime(params.StartTime)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid start time")
+    respondWithError(w, http.StatusBadRequest, "invalid start time")
 		return
 	}
   
   endTime, err := utils.ConvertToPGTime(params.EndTime)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid end time")
+    respondWithError(w, http.StatusBadRequest, "invalid end time")
 		return
 	}
 	
 	userId, err := utils.ConvertToPGUUID(params.UserID)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid userid")
+    respondWithError(w, http.StatusBadRequest, "invalid userid")
 		return 
 	}
 	
 	gameId, err := utils.ConvertToPGUUID(params.GameID)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid gameid")
+    respondWithError(w, http.StatusBadRequest, "invalid gameid")
 		return 
 	}
+
+  // check if game is available
+  copies, err := cfg.db.GetCurrentCopies(r.Context(), gameId.Bytes)
+  if err != nil {
+    respondWithError(w, 422, "invalid id")
+    return
+  }
+
+  if copies < 1 {
+    respondWithError(w, 422, "No copies avaiable")
+    return
+  }
 	
   res, err := cfg.db.CreateReservation(r.Context(), database.CreateReservationParams{
     ResDate: resDate,
@@ -529,6 +543,11 @@ func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Req
 		respondWithError(w, 422, "Could not create reservation")
 		return
 	}
+
+  err = cfg.db.DecCurrentCopies(r.Context(), gameId.Bytes)
+  if err != nil {
+    log.Printf("Could not decrement current copies: %s", err.Error())
+  }
 
 	respondWithJSON(w, 201, res)
 }
@@ -549,8 +568,6 @@ func (cfg *apiConfig) handleGetReservationsForUser(w http.ResponseWriter, r *htt
     return
 	}
 
-  log.Println(res)
-	
   respondWithJSON(w, 200, res)
 }
 
@@ -625,6 +642,58 @@ func (cfg *apiConfig) handleDeleteReservation(w http.ResponseWriter, r *http.Req
 	respondWithJSON(w, 200, "")
 }
 
+func (cfg *apiConfig) handleGetCurrentCopies(w http.ResponseWriter, r *http.Request) {
+  vars := mux.Vars(r)
+	resID:= vars["id"]
+
+	uuid, err := uuid.Parse(resID)
+  if err != nil {
+    respondWithError(w, 400, "Invalid ID format")
+    return
+  }
+  copies, err := cfg.db.GetCurrentCopies(r.Context(), uuid)
+  if err != nil {
+    respondWithError(w, http.StatusInternalServerError, "could not get current copies")
+    return
+  }
+
+  respondWithJSON(w, 200, copies)
+}
+
+func (cfg *apiConfig) runPeriodicReservationChecker(interval time.Duration) {
+  log.Println("running periodic reservation checker...")
+  ticker := time.NewTicker(interval)
+  defer ticker.Stop()
+
+  for range ticker.C {
+    cfg.checkReservationsAndUpdate()
+  }
+}
+
+func (cfg *apiConfig) checkReservationsAndUpdate() {
+  // check for any expired reservations, if expired change active to false, increment that games current_copies
+  expired, err := cfg.db.GetExpiredReservations(context.Background())
+  if err != nil {
+    log.Printf("cannot get expired reservations: %s", err.Error())
+  }
+
+  for _, res := range expired {
+    // set active to false
+    _, err := cfg.db.SetReservationInactive(context.Background(), res.ID)
+    if err != nil {
+      log.Printf("invalid id, could not set reservation to inactive: %s", err.Error())
+    }
+
+    // increment game count for the game
+    err = cfg.db.IncCurrentCopies(context.Background(), res.ID)
+    if err != nil {
+      log.Printf("could not increment copies for reservation: %v, err: %s", res.ID, err.Error())
+    }
+    log.Printf("set reservation: %s to inactive", res.ID)
+  }
+}
+
+
 func main() {
     err := godotenv.Load(".env")
     if err != nil {
@@ -645,7 +714,6 @@ func main() {
 		dbQueries := database.New(dbpool)
 		apiCfg := apiConfig{}
 		apiCfg.db = dbQueries
-		
 
 		r := mux.NewRouter()	
 		// wrap with cors and json content type
@@ -669,6 +737,7 @@ func main() {
 		r.HandleFunc("/api/games/{id}", apiCfg.handleGetGameById).Methods("GET")
 		r.HandleFunc("/api/games/{id}", apiCfg.handleDeleteGame).Methods("DELETE")
 		r.HandleFunc("/api/games/{id}", apiCfg.handleUpdateGame).Methods("PUT")
+    r.HandleFunc("/api/games/{id}/copies", apiCfg.handleGetCurrentCopies).Methods("GET")
 
     // genres
     r.HandleFunc("/api/genres", apiCfg.handleCreateGenre).Methods("POST")
@@ -688,6 +757,7 @@ func main() {
 		r.HandleFunc("/api/reservations/{id}", apiCfg.handleDeleteReservation).Methods("DELETE")
 		r.HandleFunc("/api/reservations/{userID}", apiCfg.handleGetReservationsForUser).Methods("GET")
 
+    go apiCfg.runPeriodicReservationChecker(5 * time.Minute)
 
 		server.ListenAndServe()
 		

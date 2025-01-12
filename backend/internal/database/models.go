@@ -10,9 +10,10 @@ import (
 )
 
 type Game struct {
-	ID     uuid.UUID
-	Title  string
-	Copies int16
+	ID            uuid.UUID
+	Title         string
+	Copies        int16
+	CurrentCopies int16
 }
 
 type GameGenre struct {
@@ -32,6 +33,7 @@ type Reservation struct {
 	EndTime   pgtype.Time
 	UserID    pgtype.UUID
 	GameID    pgtype.UUID
+	Active    bool
 }
 
 type User struct {

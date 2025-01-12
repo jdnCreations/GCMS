@@ -33,6 +33,16 @@ where user_id = $1;
 -- name: GetAllActiveReservations :many
 SELECT * from reservations where end_time > NOW();
 
+-- name: GetExpiredReservations :many
+SELECT * from reservations where end_time < NOW()::TIME AND active = true;
+
+-- name: SetReservationInactive :one
+UPDATE reservations
+SET active = false
+WHERE id = $1 AND
+end_time < NOW()::TIME
+RETURNING *;
+
 -- name: CheckGameReservation :one
 SELECT
   COALESCE((SELECT copies FROM games WHERE game_id = $1), 0) - COALESCE(COUNT(*), 0) AS available_copies

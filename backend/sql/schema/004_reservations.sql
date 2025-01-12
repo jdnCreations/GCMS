@@ -6,6 +6,7 @@ CREATE TABLE reservations (
   end_time TIME NOT NULL,
   user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   game_id UUID REFERENCES games(id) ON DELETE CASCADE,
+  active BOOLEAN NOT NULL DEFAULT TRUE
   CHECK (start_time < end_time)
 );
 

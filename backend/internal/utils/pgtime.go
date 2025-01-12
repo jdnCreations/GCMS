@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -24,8 +23,6 @@ import (
 // }
 
 func ConvertToPGTime(str string) (pgtype.Time, error) {
-	log.Printf("trying to convert %s to a pgtime", str)
-
 	// Parse the string into time.Time
 	parsedTime, err := time.Parse("15:04", str)
 	if err != nil {
@@ -36,8 +33,6 @@ func ConvertToPGTime(str string) (pgtype.Time, error) {
 	var pgTime pgtype.Time
 	pgTime.Microseconds = int64(parsedTime.Hour() *3600*1e6 + parsedTime.Minute()*60*1e6)
 	pgTime.Valid = true
-
-	log.Printf("pgTime: %+v", pgTime)
 
 	return pgTime, nil
 }

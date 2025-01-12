@@ -35,7 +35,9 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
     const fetchData = async () => {
       try {
         const response = await axios.get(`${apiUrl}/api/users`);
-        setUsers(response?.data.reverse());
+        if (response.data && response.data.length > 0) {
+          setUsers(response?.data.reverse());
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
       }

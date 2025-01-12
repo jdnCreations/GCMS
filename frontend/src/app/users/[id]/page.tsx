@@ -180,11 +180,12 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
             onChange={(e) => {
               e.preventDefault();
               const selectedGameId = e.target.value;
+              console.log(selectedGameId);
               setNewReservation({ ...newReservation, GameID: selectedGameId });
             }}
           >
             <option value=''>Select a Game</option>
-            {games.map((g) => (
+            {games?.map((g) => (
               <option key={g.ID} value={g.ID}>
                 {g.Title}
               </option>

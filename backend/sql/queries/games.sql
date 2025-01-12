@@ -2,10 +2,11 @@
 SELECT * FROM games where id = $1;
 
 -- name: CreateGame :one
-INSERT INTO games (id, title, copies)
+INSERT INTO games (id, title, copies, current_copies)
 VALUES (
   gen_random_uuid(),
   $1,
+  $2,
   $2
 )
 RETURNING *;
@@ -30,3 +31,16 @@ SET
     ELSE copies
   END
 WHERE id = $3 RETURNING id, title, copies;
+
+-- name: GetCurrentCopies :one
+SELECT current_copies from games where id = $1;
+
+-- name: DecCurrentCopies :exec
+UPDATE games
+SET current_copies = current_copies - 1
+WHERE id = $1 AND current_copies  > 0;
+
+-- name: IncCurrentCopies :exec
+UPDATE games
+SET current_copies = current_copies + 1
+WHERE id = $1 AND current_copies < copies;
