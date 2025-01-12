@@ -12,25 +12,40 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, first_name, last_name, email)
+INSERT INTO users (id, first_name, last_name, email, hashed_password)
 VALUES (
   gen_random_uuid(),
   $1,
   $2,
-  $3
+  $3,
+  $4
 )
 RETURNING id, first_name, last_name, email, is_admin
 `
 
 type CreateUserParams struct {
+	FirstName      string
+	LastName       string
+	Email          string
+	HashedPassword string
+}
+
+type CreateUserRow struct {
+	ID        uuid.UUID
 	FirstName string
 	LastName  string
 	Email     string
+	IsAdmin   bool
 }
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.FirstName, arg.LastName, arg.Email)
-	var i User
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
+	row := q.db.QueryRow(ctx, createUser,
+		arg.FirstName,
+		arg.LastName,
+		arg.Email,
+		arg.HashedPassword,
+	)
+	var i CreateUserRow
 	err := row.Scan(
 		&i.ID,
 		&i.FirstName,
@@ -54,15 +69,23 @@ const getAllUsers = `-- name: GetAllUsers :many
 SELECT id, first_name, last_name, email, is_admin FROM users ORDER BY first_name
 `
 
-func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
+type GetAllUsersRow struct {
+	ID        uuid.UUID
+	FirstName string
+	LastName  string
+	Email     string
+	IsAdmin   bool
+}
+
+func (q *Queries) GetAllUsers(ctx context.Context) ([]GetAllUsersRow, error) {
 	rows, err := q.db.Query(ctx, getAllUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []GetAllUsersRow
 	for rows.Next() {
-		var i User
+		var i GetAllUsersRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.FirstName,
@@ -80,13 +103,39 @@ func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, first_name, last_name, email, is_admin, hashed_password from users where email = $1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.IsAdmin,
+		&i.HashedPassword,
+	)
+	return i, err
+}
+
 const getUserById = `-- name: GetUserById :one
 SELECT id, first_name, last_name, email, is_admin FROM users where id = $1
 `
 
-func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (User, error) {
+type GetUserByIdRow struct {
+	ID        uuid.UUID
+	FirstName string
+	LastName  string
+	Email     string
+	IsAdmin   bool
+}
+
+func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow, error) {
 	row := q.db.QueryRow(ctx, getUserById, id)
-	var i User
+	var i GetUserByIdRow
 	err := row.Scan(
 		&i.ID,
 		&i.FirstName,
@@ -97,11 +146,10 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (User, error) {
 	return i, err
 }
 
-const setAdmin = `-- name: SetAdmin :one
+const setAdmin = `-- name: SetAdmin :exec
 UPDATE users
 SET is_admin = $1
 WHERE id = $2
-RETURNING id, first_name, last_name, email, is_admin
 `
 
 type SetAdminParams struct {
@@ -109,17 +157,9 @@ type SetAdminParams struct {
 	ID      uuid.UUID
 }
 
-func (q *Queries) SetAdmin(ctx context.Context, arg SetAdminParams) (User, error) {
-	row := q.db.QueryRow(ctx, setAdmin, arg.IsAdmin, arg.ID)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.FirstName,
-		&i.LastName,
-		&i.Email,
-		&i.IsAdmin,
-	)
-	return i, err
+func (q *Queries) SetAdmin(ctx context.Context, arg SetAdminParams) error {
+	_, err := q.db.Exec(ctx, setAdmin, arg.IsAdmin, arg.ID)
+	return err
 }
 
 const updateUser = `-- name: UpdateUser :one

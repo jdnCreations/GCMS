@@ -3,32 +3,45 @@
 import React, { useEffect, useState } from 'react';
 import CardComponent from './CardComponent';
 import axios from 'axios';
+import Login from './Login';
+import { useAuth } from '@/context/AuthContext';
 
 interface User {
   ID: string;
   FirstName: string;
   LastName: string;
   Email: string;
+  Password: string;
 }
 
-interface UserInterfaceProps {
-  backendName: string;
+interface CurrentUser {
+  ID: string;
+  Email: string;
+  Token: string;
 }
 
-const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
+const UserInterface: React.FC = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  const [currentUser, setCurrentUser] = useState<CurrentUser>({
+    ID: '',
+    Email: '',
+    Token: '',
+  });
   const [users, setUsers] = useState<User[]>([]);
   const [newUser, setNewUser] = useState({
     FirstName: '',
     LastName: '',
     Email: '',
+    Password: '',
   });
   const [updatedUser, setUpdateUser] = useState({
     ID: '',
     FirstName: '',
     LastName: '',
     Email: '',
+    Password: '',
   });
+  const { isAuthenticated } = useAuth();
 
   // fetch all users
   useEffect(() => {
@@ -44,7 +57,7 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
     };
 
     fetchData();
-  }, [backendName, apiUrl]);
+  }, [apiUrl]);
 
   const createUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -52,7 +65,7 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
     try {
       const response = await axios.post(`${apiUrl}/api/users`, newUser);
       setUsers([response.data, ...users]);
-      setNewUser({ FirstName: '', LastName: '', Email: '' });
+      setNewUser({ FirstName: '', LastName: '', Email: '', Password: '' });
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
         console.error('API Error:', error.response.data.error);
@@ -76,7 +89,13 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
           user.ID === updatedUserData.ID ? updatedUserData : user
         )
       );
-      setUpdateUser({ ID: '', FirstName: '', LastName: '', Email: '' });
+      setUpdateUser({
+        ID: '',
+        FirstName: '',
+        LastName: '',
+        Email: '',
+        Password: '',
+      });
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
         console.error('API Error:', error.response.data.error);
@@ -97,6 +116,10 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
 
   return (
     <div className='bg-blue-100 justify-center items-center flex flex-col rounded-lg py-2 px-8'>
+      {currentUser?.Email && (
+        <p className='text-gray-800'>Hello, {currentUser?.Email}</p>
+      )}
+      {!isAuthenticated && <Login setCurrentUser={setCurrentUser} />}
       {/* Create user */}
       <div>
         <form
@@ -126,6 +149,15 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
             placeholder='Email'
             value={newUser.Email}
             onChange={(e) => setNewUser({ ...newUser, Email: e.target.value })}
+            className='mb-2 w-full p-2 border border-gray-300 rounded'
+          />
+          <input
+            type='password'
+            placeholder='Password'
+            value={newUser.Password}
+            onChange={(e) =>
+              setNewUser({ ...newUser, Password: e.target.value })
+            }
             className='mb-2 w-full p-2 border border-gray-300 rounded'
           />
           <button

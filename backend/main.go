@@ -17,6 +17,7 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
+	"github.com/jdnCreations/gcms/internal/auth"
 	"github.com/jdnCreations/gcms/internal/database"
 	"github.com/jdnCreations/gcms/internal/models"
 	"github.com/jdnCreations/gcms/internal/utils"
@@ -24,6 +25,7 @@ import (
 
 type apiConfig struct {
   db *database.Queries
+  secret string
 }
 
 func handleReadiness(w http.ResponseWriter, r *http.Request) {
@@ -69,6 +71,7 @@ func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		FirstName string;
 		LastName string;
 		Email string;
+    Password string;
 	}
 	log.Println("Attempting to create a user")
 	decoder := json.NewDecoder(r.Body)
@@ -79,18 +82,24 @@ func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// validate user
-	validate := validator.New()
-	err = validate.Struct(params)
-	if err != nil {
-		respondWithError(w, 422, err.Error())
-		return
-	}
+  if params.Password == "" {
+    respondWithError(w, 422, "Password is required")
+    return
+  }
+
+  pw, err := auth.HashPassword(params.Password)
+  if err != nil {
+    log.Printf("Could not hash password: %s", err.Error())
+    respondWithError(w, 422, "Could not hash password")
+    return
+  }
+
 
 	user, err := cfg.db.CreateUser(r.Context(), database.CreateUserParams{
 		FirstName: params.FirstName,
 		LastName: params.LastName,
 		Email: params.Email,
+    HashedPassword: pw,
 	}) 
 	if err != nil {
 		fmt.Printf("Error: %s", err.Error())
@@ -98,7 +107,79 @@ func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondWithJSON(w, 201, user)
+  type UserResponse struct {
+    ID string;
+    FirstName string;
+    LastName string;
+    Email string;
+  }
+
+	respondWithJSON(w, 201, UserResponse{
+    ID: user.ID.String(),
+    FirstName: user.FirstName,
+    LastName: user.LastName,
+    Email: user.Email,
+  })
+}
+
+func (cfg *apiConfig) handleLoginUser(w http.ResponseWriter, r *http.Request) {
+  type ExpectedBody struct {
+    Password string;
+    Email string;
+    ExpiresInSeconds *int;
+  }
+
+  decoder := json.NewDecoder(r.Body)
+	params := ExpectedBody{} 
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, 500, err.Error())
+		return
+	}
+
+  if params.Password == "" {
+    respondWithError(w, 422, "Password is required")
+    return
+  }
+
+  if params.Email == "" {
+    respondWithError(w, 422, "Email is required")
+    return
+  }
+
+  user, err := cfg.db.GetUserByEmail(r.Context(), params.Email)
+  if err != nil {
+    respondWithError(w, 404, "user not found")
+    return
+  }
+
+  err = auth.CheckPasswordHash(params.Password, user.HashedPassword)
+  if err != nil {
+    respondWithError(w, 401, "invalid login details")
+    return
+  }
+
+  var expiresIn time.Duration 
+
+  if params.ExpiresInSeconds != nil {
+    expiresIn = time.Duration(*params.ExpiresInSeconds) * time.Second
+  } else {
+    expiresIn = 1 * time.Hour
+  }
+
+  jwt, err := auth.MakeJWT(user.ID, cfg.secret, expiresIn)
+  if err != nil {
+    respondWithError(w, 500, "Could not create token")
+    return
+  }
+
+  type UserResponse struct {
+    ID string
+    Email string
+    Token string
+  }
+
+  respondWithJSON(w, 200, UserResponse{ID: user.ID.String(), Email: user.Email, Token: jwt})
 }
 
 func (cfg *apiConfig) handleGetAllUsers(w http.ResponseWriter, r *http.Request) {
@@ -486,7 +567,6 @@ func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Req
     return
   }
   
-  
 	// convert to appropriate types for db ?
   resDate, err := utils.ConvertToPGDate(params.Date)
   if err != nil {
@@ -701,6 +781,7 @@ func main() {
     }
 		port := os.Getenv("PORT")
 		dbURL := os.Getenv("DATABASE_URL")
+    secret := os.Getenv("SECRET")
 		if port == "" {
 			log.Fatal("PORT environment variable is not set")
 		}
@@ -714,6 +795,7 @@ func main() {
 		dbQueries := database.New(dbpool)
 		apiCfg := apiConfig{}
 		apiCfg.db = dbQueries
+    apiCfg.secret = secret
 
 		r := mux.NewRouter()	
 		// wrap with cors and json content type
@@ -726,6 +808,7 @@ func main() {
 
 		// users
 		r.HandleFunc("/api/users", apiCfg.handleCreateUser).Methods("POST")
+    r.HandleFunc("/api/users/login", apiCfg.handleLoginUser).Methods("POST")
 		r.HandleFunc("/api/users/{id}", apiCfg.handleGetUserById).Methods("GET")
 		r.HandleFunc("/api/users", apiCfg.handleGetAllUsers).Methods("GET")
     r.HandleFunc("/api/users/{id}", apiCfg.handleUpdateUser).Methods("PUT")

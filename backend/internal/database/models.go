@@ -37,9 +37,10 @@ type Reservation struct {
 }
 
 type User struct {
-	ID        uuid.UUID
-	FirstName string
-	LastName  string
-	Email     string
-	IsAdmin   bool
+	ID             uuid.UUID
+	FirstName      string
+	LastName       string
+	Email          string
+	IsAdmin        bool
+	HashedPassword string
 }

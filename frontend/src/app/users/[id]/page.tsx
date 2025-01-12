@@ -1,5 +1,6 @@
 'use client';
 import ReservationComponent from '@/components/ReservationComponent';
+import { useAuth } from '@/context/AuthContext';
 import axios from 'axios';
 import React, { use, useEffect, useState } from 'react';
 
@@ -48,6 +49,7 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
   const [user, setUser] = useState<User>();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [games, setGames] = useState<Game[]>([]);
+  const { jwt, isAuthenticated } = useAuth();
   const [newReservation, setNewReservation] = useState<NewReservation>({
     Date: '',
     StartTime: '',
@@ -121,9 +123,7 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
     <div className='flex flex-col items-center gap-4'>
       <div>
         <h1>User Info</h1>
-        <p>
-          {user?.FirstName} {user?.LastName}
-        </p>
+        <p>{isAuthenticated}</p>
       </div>
       <div className='flex flex-col'>
         <form

@@ -1,21 +1,25 @@
 -- name: GetUserById :one
-SELECT * FROM users where id = $1;
+SELECT id, first_name, last_name, email, is_admin FROM users where id = $1;
+
+-- name: GetUserByEmail :one
+SELECT * from users where email = $1;
 
 -- name: CreateUser :one
-INSERT INTO users (id, first_name, last_name, email)
+INSERT INTO users (id, first_name, last_name, email, hashed_password)
 VALUES (
   gen_random_uuid(),
   $1,
   $2,
-  $3
+  $3,
+  $4
 )
-RETURNING *;
+RETURNING id, first_name, last_name, email, is_admin;
 
 -- name: DeleteUserById :exec
 DELETE FROM users where id = $1;
 
 -- name: GetAllUsers :many
-SELECT * FROM users ORDER BY first_name;
+SELECT id, first_name, last_name, email, is_admin FROM users ORDER BY first_name;
 
 -- name: UpdateUser :one
 UPDATE users 
@@ -25,8 +29,7 @@ SET first_name = COALESCE(NULLIF($1, ''), first_name),
 WHERE id = $4
 RETURNING id, first_name, last_name, email;
 
--- name: SetAdmin :one
+-- name: SetAdmin :exec
 UPDATE users
 SET is_admin = $1
-WHERE id = $2
-RETURNING *;
+WHERE id = $2;
