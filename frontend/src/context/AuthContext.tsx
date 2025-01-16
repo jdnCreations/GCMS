@@ -1,13 +1,18 @@
 'use client';
 import axios from 'axios';
-// src/context/AuthContext.tsx
-
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 interface AuthContextType {
   isAuthenticated: boolean;
+  setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>;
   email: string;
+  setEmail: React.Dispatch<React.SetStateAction<string>>;
+  name: string;
+  setName: React.Dispatch<React.SetStateAction<string>>;
   jwt: string;
+  setJwt: React.Dispatch<React.SetStateAction<string>>;
+  isAdmin: boolean;
+  setIsAdmin: React.Dispatch<React.SetStateAction<boolean>>;
   login: (user: { Email: string; Password: string }) => Promise<void>;
   logout: () => void;
 }
@@ -21,13 +26,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [email, setEmail] = useState('');
   const [jwt, setJwt] = useState('');
+  const [name, setName] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  interface LoginResponse {
+    ID: string;
+    Email: string;
+    FirstName: string;
+    Token: string;
+    RefreshToken: string;
+    IsAdmin: boolean;
+  }
+
+  interface RefreshResponse {
+    Token: string;
+    Name: string;
+    IsAdmin: boolean;
+    Email: string;
+  }
+
+  useEffect(() => {
+    const attemptAutoLogin = async () => {
+      try {
+        // check if refresh_token cookie exists
+        const response = await axios.post<RefreshResponse>(
+          `${apiUrl}/api/refresh`,
+          {},
+          { withCredentials: true }
+        );
+        // get user data
+        setJwt(response.data.Token);
+        setIsAuthenticated(true);
+        setIsAdmin(response.data.IsAdmin);
+        setName(response.data.Name);
+        setEmail(response.data.Email);
+      } catch (error) {
+        console.log('not authenticated:', error);
+      }
+    };
+    attemptAutoLogin();
+  });
 
   const login = async (user: { Email: string; Password: string }) => {
     try {
-      const response = await axios.post(`${apiUrl}/api/users/login`, user);
+      const response = await axios.post<LoginResponse>(
+        `${apiUrl}/api/users/login`,
+        user,
+        { withCredentials: true }
+      );
       setIsAuthenticated(true);
       setEmail(user.Email);
+      setName(response.data.FirstName);
       setJwt(response.data.Token);
+      setIsAdmin(response.data.IsAdmin);
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
         // setErrorMsg(error.response.data.error);
@@ -49,8 +100,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     <AuthContext.Provider
       value={{
         isAuthenticated,
+        setIsAuthenticated,
         email,
+        setEmail,
+        name,
+        setName,
+        isAdmin,
+        setIsAdmin,
         jwt,
+        setJwt,
         login,
         logout,
       }}

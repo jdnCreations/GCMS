@@ -26,6 +26,15 @@ type Genre struct {
 	Name string
 }
 
+type RefreshToken struct {
+	Token     string
+	CreatedAt pgtype.Timestamp
+	UpdatedAt pgtype.Timestamp
+	UserID    uuid.UUID
+	ExpiresAt pgtype.Timestamp
+	RevokedAt pgtype.Timestamp
+}
+
 type Reservation struct {
 	ID        uuid.UUID
 	ResDate   pgtype.Date

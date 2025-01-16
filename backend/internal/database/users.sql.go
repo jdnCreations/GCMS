@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -142,6 +143,48 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow
 		&i.LastName,
 		&i.Email,
 		&i.IsAdmin,
+	)
+	return i, err
+}
+
+const getUserFromRefreshToken = `-- name: GetUserFromRefreshToken :one
+SELECT id, first_name, last_name, email, is_admin, hashed_password, token, created_at, updated_at, user_id, expires_at, revoked_at
+FROM users 
+JOIN refresh_tokens ON users.id = refresh_tokens.user_id
+where refresh_tokens.token = $1
+`
+
+type GetUserFromRefreshTokenRow struct {
+	ID             uuid.UUID
+	FirstName      string
+	LastName       string
+	Email          string
+	IsAdmin        bool
+	HashedPassword string
+	Token          string
+	CreatedAt      pgtype.Timestamp
+	UpdatedAt      pgtype.Timestamp
+	UserID         uuid.UUID
+	ExpiresAt      pgtype.Timestamp
+	RevokedAt      pgtype.Timestamp
+}
+
+func (q *Queries) GetUserFromRefreshToken(ctx context.Context, token string) (GetUserFromRefreshTokenRow, error) {
+	row := q.db.QueryRow(ctx, getUserFromRefreshToken, token)
+	var i GetUserFromRefreshTokenRow
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.IsAdmin,
+		&i.HashedPassword,
+		&i.Token,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserID,
+		&i.ExpiresAt,
+		&i.RevokedAt,
 	)
 	return i, err
 }

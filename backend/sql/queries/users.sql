@@ -33,3 +33,9 @@ RETURNING id, first_name, last_name, email;
 UPDATE users
 SET is_admin = $1
 WHERE id = $2;
+
+-- name: GetUserFromRefreshToken :one
+SELECT *
+FROM users 
+JOIN refresh_tokens ON users.id = refresh_tokens.user_id
+where refresh_tokens.token = $1;

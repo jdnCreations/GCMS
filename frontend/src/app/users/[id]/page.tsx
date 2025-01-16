@@ -123,7 +123,7 @@ function Page({ params }: { params: Promise<{ id: string }> }) {
     <div className='flex flex-col items-center gap-4'>
       <div>
         <h1>User Info</h1>
-        <p>{isAuthenticated}</p>
+        <p>{isAuthenticated ? {}}</p>
       </div>
       <div className='flex flex-col'>
         <form

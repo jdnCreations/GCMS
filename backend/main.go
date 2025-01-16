@@ -12,6 +12,7 @@ import (
 	"github.com/go-playground/validator"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
@@ -126,7 +127,6 @@ func (cfg *apiConfig) handleLoginUser(w http.ResponseWriter, r *http.Request) {
   type ExpectedBody struct {
     Password string;
     Email string;
-    ExpiresInSeconds *int;
   }
 
   decoder := json.NewDecoder(r.Body)
@@ -159,27 +159,42 @@ func (cfg *apiConfig) handleLoginUser(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  var expiresIn time.Duration 
-
-  if params.ExpiresInSeconds != nil {
-    expiresIn = time.Duration(*params.ExpiresInSeconds) * time.Second
-  } else {
-    expiresIn = 1 * time.Hour
-  }
-
-  jwt, err := auth.MakeJWT(user.ID, cfg.secret, expiresIn)
+  jwt, err := auth.MakeJWT(user.ID, cfg.secret)
   if err != nil {
-    respondWithError(w, 500, "Could not create token")
+    respondWithError(w, 500, "could not create jwt token")
     return
   }
+
+	refresh, err := auth.MakeRefreshToken()
+	if err != nil {
+		respondWithError(w, 500, "could not create refresh token")
+		return
+	}
+
+	_, err = cfg.db.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+		Token: refresh,
+		UserID: user.ID,
+		ExpiresAt: pgtype.Timestamp{Time: time.Now().Add(60 * 24 * time.Hour), Valid: true},
+	})
+	if err != nil {
+		log.Println("error saving token to db", err.Error())
+		respondWithError(w, 500, "could not save token to db")
+		return
+	}
+
+  cookie := http.Cookie{Name: "refresh_token", Value: refresh, Path: "/", HttpOnly: true, MaxAge: 60 * 24 * 60 * 60, SameSite: http.SameSiteStrictMode }
+  http.SetCookie(w, &cookie)
 
   type UserResponse struct {
     ID string
     Email string
+		FirstName string
     Token string
+		RefreshToken string
+    IsAdmin bool
   }
 
-  respondWithJSON(w, 200, UserResponse{ID: user.ID.String(), Email: user.Email, Token: jwt})
+  respondWithJSON(w, 200, UserResponse{ID: user.ID.String(), Email: user.Email, FirstName: user.FirstName, Token: jwt, RefreshToken: refresh, IsAdmin: user.IsAdmin})
 }
 
 func (cfg *apiConfig) handleGetAllUsers(w http.ResponseWriter, r *http.Request) {
@@ -773,6 +788,129 @@ func (cfg *apiConfig) checkReservationsAndUpdate() {
   }
 }
 
+// func (cfg *apiConfig) handleSetAdmin(w http.ResponseWriter, r *http.Request) {
+// 	log.Println("HIT DA ADMIN ENDPOINT")
+// }
+
+func (cfg *apiConfig) handleSetAdmin(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, 401, "Could not extract bearer")
+		return
+	}
+
+	id, err := auth.ValidateJWT(token, cfg.secret)
+	if err != nil {
+		respondWithError(w, 401, "invalid token")
+		return
+	}
+
+	user, err := cfg.db.GetUserById(r.Context(), id)
+	if err != nil {
+		respondWithError(w, 404, "user does not exist")
+		return
+	}
+
+	if !user.IsAdmin {
+		respondWithError(w, 404, "invalid permissions")
+		return
+	}
+
+	type p struct {
+		SetAdmin bool 
+    UserID string
+  }
+  params := p{}
+  decoder := json.NewDecoder(r.Body)
+  err = decoder.Decode(&params)	
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid request payload")
+    return
+	}
+
+	log.Printf("%s is trying to set admin on: %s", user.ID, params.UserID)
+
+	userId, err := uuid.Parse(params.UserID)
+	if err != nil {
+		respondWithError(w, 400, "Invalid ID format")
+    return
+	}
+
+	err = cfg.db.SetAdmin(r.Context(), database.SetAdminParams{
+		IsAdmin: params.SetAdmin,
+		ID: userId,
+	})
+	if err != nil {
+		respondWithError(w, 422, "could not set admin")
+		return
+	}
+
+	log.Println("WE SET SOMEONE AS AN ADMIN OMG")
+	respondWithJSON(w, 200, "admin set")
+}
+
+func (cfg *apiConfig) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("refresh_token")
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+
+  token, err := cfg.db.GetRefreshToken(r.Context(), cookie.Value)
+	if err != nil {
+		respondWithError(w, 401, "invalid refresh token")
+		return
+	}
+	if time.Now().After(token.ExpiresAt.Time) {
+		respondWithError(w, 401, "invalid refresh token")
+		return
+	}
+
+  user, err := cfg.db.GetUserFromRefreshToken(r.Context(), token.Token)
+  if err != nil {
+    respondWithError(w, 401, "no user exists with refresh token")
+    return
+  }
+
+  newToken, err := auth.MakeJWT(user.ID, cfg.secret)
+  if err != nil {
+    respondWithError(w, 500, "could not create jwt token")
+    return
+  }
+
+	type res struct {
+		Token string
+		Name string
+		IsAdmin bool
+		Email string
+	}
+
+	respondWithJSON(w, 200, res{
+		Token: newToken,
+		Name: user.FirstName,
+		Email: user.Email,
+		IsAdmin: user.IsAdmin,	
+	});
+}
+
+
+func (cfg *apiConfig) handleRevokeToken(w http.ResponseWriter, r *http.Request) {
+  bearer, err := auth.GetBearerToken(r.Header)
+  if err != nil {
+    respondWithError(w, 401, "invalid bearer token")
+    return
+  }
+
+  _, err = cfg.db.RevokeToken(r.Context(), bearer)
+  if err != nil {
+    respondWithError(w, 500, "could not revoke token")
+    return
+  }
+
+  respondWithJSON(w, 204, "")
+}
+
 
 func main() {
     err := godotenv.Load(".env")
@@ -806,7 +944,12 @@ func main() {
 		}
 		r.HandleFunc("/api/healthz", handleReadiness).Methods("GET")
 
+		// refresh token
+		r.HandleFunc("/api/refresh", apiCfg.handleRefreshToken).Methods("POST");
+    r.HandleFunc("/api/revoke", apiCfg.handleRevokeToken).Methods("POST");
+
 		// users
+		r.HandleFunc("/api/users/admin", apiCfg.handleSetAdmin).Methods("PUT")
 		r.HandleFunc("/api/users", apiCfg.handleCreateUser).Methods("POST")
     r.HandleFunc("/api/users/login", apiCfg.handleLoginUser).Methods("POST")
 		r.HandleFunc("/api/users/{id}", apiCfg.handleGetUserById).Methods("GET")
@@ -848,7 +991,8 @@ func main() {
 
 func enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*") // allow any origin
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000") // allow any origin
+    w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 

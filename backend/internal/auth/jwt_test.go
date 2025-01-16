@@ -3,22 +3,16 @@ package auth
 import (
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 )
 
 func TestJWT(t *testing.T) {
-	uuid, err := uuid.Parse("bd7d92e2-a631-4258-8b58-db200b311153")
+	uuid, err := uuid.Parse("9d961878-8641-4ba9-b194-9b9b48122384")
 	if err != nil {
 		t.Fatalf("Could not parse uuid")
 	}
-	jwt, err := MakeJWT(uuid, "test", 1 * time.Minute)
-	if err != nil {
-		t.Fatalf("Could not create JWT, err: %s", err.Error())
-	}
-
-	jwt2, err := MakeJWT(uuid, "test", -1 * time.Second)
+	jwt, err := MakeJWT(uuid, "test")
 	if err != nil {
 		t.Fatalf("Could not create JWT, err: %s", err.Error())
 	}
@@ -26,11 +20,6 @@ func TestJWT(t *testing.T) {
 	validated, err := ValidateJWT(jwt, "test")
 	if err != nil {
 		t.Errorf("Could not validate JWT, err: %s", err.Error())
-	}
-
-	_, err = ValidateJWT(jwt2, "test")
-	if err == nil {
-		t.Errorf("Expected error for expired token, got none")
 	}
 
 	if validated.String() != uuid.String() {
