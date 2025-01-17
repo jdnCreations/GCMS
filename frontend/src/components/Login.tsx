@@ -17,48 +17,6 @@ const Login: React.FC = () => {
     changeFormType();
   };
 
-  // interface LoginResponse {
-  //   ID: string;
-  //   Email: string;
-  //   FirstName: string;
-  //   Token: string;
-  //   RefreshToken: string;
-  //   IsAdmin: boolean;
-  // }
-
-  // useEffect(() => {
-  //   const autoLogin = async () => {
-  //     const cookieStore = await cookies();
-  //     const refreshToken = cookieStore.get('refreshToken');
-
-  //     if (!refreshToken) {
-  //       return;
-  //     }
-
-  //     try {
-  //       const response = await axios.post<LoginResponse>(
-  //         `${apiUrl}/api/refresh`,
-  //         {},
-  //         {
-  //           headers: {
-  //             Authorization: `Bearer ${refreshToken}`,
-  //           },
-  //         }
-  //       );
-  //       setJwt(response.data.Token);
-  //       setEmail(response.data.Email);
-  //       setIsAdmin(response.data.IsAdmin);
-  //       setName(response.data.FirstName);
-  //       cookieStore.set('refreshToken', response.data.RefreshToken);
-  //       setIsAuthenticated(true);
-  //     } catch (error) {
-  //       setIsAuthenticated(false);
-  //       console.error(error);
-  //     }
-  //   };
-  //   autoLogin();
-  // });
-
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -88,7 +46,7 @@ const Login: React.FC = () => {
       />
       <button
         type='submit'
-        className='bg-[#A8BBA1] text-white w-full p-2 rounded hover:bg-[#E4B7B2]'
+        className='bg-[#A8BBA1] text-white w-full p-2 rounded hover:bg-[#C8D9C3]'
       >
         Login
       </button>

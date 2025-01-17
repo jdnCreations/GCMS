@@ -13,8 +13,9 @@ interface AuthContextType {
   setJwt: React.Dispatch<React.SetStateAction<string>>;
   isAdmin: boolean;
   setIsAdmin: React.Dispatch<React.SetStateAction<boolean>>;
+  userId: string;
   login: (user: { Email: string; Password: string }) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [jwt, setJwt] = useState('');
   const [name, setName] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userId, setUserId] = useState('');
 
   interface LoginResponse {
     ID: string;
@@ -43,11 +45,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     Name: string;
     IsAdmin: boolean;
     Email: string;
+    ID: string;
   }
 
   useEffect(() => {
     const attemptAutoLogin = async () => {
       try {
+        if (jwt) {
+          console.log(jwt);
+          setIsAuthenticated(true);
+          return;
+        }
+        console.log('running a refresh req');
         // check if refresh_token cookie exists
         const response = await axios.post<RefreshResponse>(
           `${apiUrl}/api/refresh`,
@@ -60,12 +69,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setIsAdmin(response.data.IsAdmin);
         setName(response.data.Name);
         setEmail(response.data.Email);
+        setUserId(response.data.ID);
       } catch (error) {
         console.log('not authenticated:', error);
       }
     };
     attemptAutoLogin();
-  });
+  }, [jwt, apiUrl]);
 
   const login = async (user: { Email: string; Password: string }) => {
     try {
@@ -91,9 +101,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const logout = async () => {
-    setIsAuthenticated(false);
-    setEmail('');
-    setJwt('');
+    try {
+      await axios.post(
+        `${apiUrl}/api/users/logout`,
+        {},
+        { withCredentials: true }
+      );
+      setIsAuthenticated(false);
+      setEmail('');
+      setJwt('');
+      setName('');
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        // setErrorMsg(error.response.data.error);
+        console.error('API Error:', error.response.data.error);
+      } else {
+        // setErrorMsg('Could not login');
+        console.error('Error logging out user', error);
+      }
+    }
   };
 
   return (
@@ -111,6 +137,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setJwt,
         login,
         logout,
+        userId,
       }}
     >
       {children}

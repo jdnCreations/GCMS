@@ -123,6 +123,33 @@ func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
   })
 }
 
+func (cfg *apiConfig) handleLogoutUser(w http.ResponseWriter, r *http.Request) {
+	refresh, err := r.Cookie("refresh_token")
+	if err != nil {
+		log.Printf("No cookie found: %v", err)
+	} else {
+		log.Printf("Found cookie with token: %v", refresh.Value)
+		token, err := cfg.db.RevokeToken(r.Context(), refresh.Value)
+		if err != nil {
+			log.Printf("Could not revoke token: %v", token)
+		} else {
+			log.Printf("Successfully revoked token: %v", token)
+		}	
+	}
+
+	cookie := http.Cookie{
+		Name: "refresh_token", 
+		Value: "", 
+		Path: "/",
+		MaxAge: -1,
+		HttpOnly: true, 
+		SameSite: http.SameSiteStrictMode,
+	}
+  http.SetCookie(w, &cookie)
+
+	respondWithJSON(w, 201, "");
+}
+
 func (cfg *apiConfig) handleLoginUser(w http.ResponseWriter, r *http.Request) {
   type ExpectedBody struct {
     Password string;
@@ -182,7 +209,14 @@ func (cfg *apiConfig) handleLoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-  cookie := http.Cookie{Name: "refresh_token", Value: refresh, Path: "/", HttpOnly: true, MaxAge: 60 * 24 * 60 * 60, SameSite: http.SameSiteStrictMode }
+  cookie := http.Cookie{
+		Name: "refresh_token", 
+		Value: refresh, 
+		Path: "/", 
+		HttpOnly: true, 
+		MaxAge: 60 * 24 * 60 * 60, 
+		SameSite: http.SameSiteStrictMode,
+	}
   http.SetCookie(w, &cookie)
 
   type UserResponse struct {
@@ -248,6 +282,7 @@ func (cfg *apiConfig) handleGetUserById(w http.ResponseWriter, r *http.Request) 
 }
 
 func (cfg *apiConfig) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
+	log.Printf("trying to update user")
 	vars := mux.Vars(r)
 	id := vars["id"]
 	uuid, err := uuid.Parse(id)
@@ -845,7 +880,6 @@ func (cfg *apiConfig) handleSetAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println("WE SET SOMEONE AS AN ADMIN OMG")
 	respondWithJSON(w, 200, "admin set")
 }
 
@@ -856,13 +890,18 @@ func (cfg *apiConfig) handleRefreshToken(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-
   token, err := cfg.db.GetRefreshToken(r.Context(), cookie.Value)
 	if err != nil {
 		respondWithError(w, 401, "invalid refresh token")
 		return
 	}
+
 	if time.Now().After(token.ExpiresAt.Time) {
+		respondWithError(w, 401, "invalid refresh token")
+		return
+	}
+
+	if token.RevokedAt.Valid {
 		respondWithError(w, 401, "invalid refresh token")
 		return
 	}
@@ -884,13 +923,15 @@ func (cfg *apiConfig) handleRefreshToken(w http.ResponseWriter, r *http.Request)
 		Name string
 		IsAdmin bool
 		Email string
+		ID string
 	}
 
 	respondWithJSON(w, 200, res{
 		Token: newToken,
 		Name: user.FirstName,
 		Email: user.Email,
-		IsAdmin: user.IsAdmin,	
+		IsAdmin: user.IsAdmin,
+		ID: user.ID.String(),
 	});
 }
 
@@ -952,6 +993,7 @@ func main() {
 		r.HandleFunc("/api/users/admin", apiCfg.handleSetAdmin).Methods("PUT")
 		r.HandleFunc("/api/users", apiCfg.handleCreateUser).Methods("POST")
     r.HandleFunc("/api/users/login", apiCfg.handleLoginUser).Methods("POST")
+		r.HandleFunc("/api/users/logout", apiCfg.handleLogoutUser).Methods("POST")
 		r.HandleFunc("/api/users/{id}", apiCfg.handleGetUserById).Methods("GET")
 		r.HandleFunc("/api/users", apiCfg.handleGetAllUsers).Methods("GET")
     r.HandleFunc("/api/users/{id}", apiCfg.handleUpdateUser).Methods("PUT")
