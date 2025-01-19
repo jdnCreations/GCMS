@@ -1,7 +1,7 @@
 'use client';
 import ReservationComponent from '@/components/ReservationComponent';
 import { useAuth } from '@/context/AuthContext';
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
@@ -27,11 +27,18 @@ interface UpdatedUser {
   Email?: string;
 }
 
-const MessageDisplay = ({ updateMsg, errorMsg }) => {
+interface MessageProps {
+  updateMsg?: string;
+  errorMsg?: string;
+}
+
+const MessageDisplay = ({ errorMsg, updateMsg }: MessageProps) => {
   const message = errorMsg || updateMsg || '';
   return (
     <div
-      className={`p-2 rounded my-1 ${errorMsg ? 'bg-red-500' : 'bg-green-500'}`}
+      className={`p-2 rounded my-1 ${errorMsg && 'bg-red-500'} ${
+        updateMsg && 'bg-green-500'
+      }`}
     >
       {message}
     </div>
@@ -39,7 +46,7 @@ const MessageDisplay = ({ updateMsg, errorMsg }) => {
 };
 
 export default function Dashboard() {
-  const { name, isAuthenticated, isAdmin, userId } = useAuth();
+  const { name, isAuthenticated, isAdmin, userId, jwt } = useAuth();
   const [updatedUserInfo, setUpdatedUserInfo] = useState<UpdatedUser>({
     FirstName: '',
     LastName: '',
@@ -49,7 +56,6 @@ export default function Dashboard() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
   const [updateMsg, setUpdateMsg] = useState('');
   const [errMsg, setErrMsg] = useState('');
-  const router = useRouter();
 
   useEffect(() => {
     const getReservations = async () => {
@@ -63,7 +69,6 @@ export default function Dashboard() {
       }
     };
     if (!userId) {
-      console.log('no userId available');
       return;
     }
     getReservations();
@@ -71,7 +76,11 @@ export default function Dashboard() {
 
   const deleteReservation = async (id: string) => {
     try {
-      await axios.delete(`${apiUrl}/api/reservations/${id}`);
+      await axios.delete(`${apiUrl}/api/reservations/${id}`, {
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+        },
+      });
       setReservations(reservations.filter((res) => res.ID !== id));
     } catch (error) {
       console.error('Error deleting reservation:', error);
@@ -81,16 +90,17 @@ export default function Dashboard() {
   const updateUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      const response = await axios.put(
-        `${apiUrl}/api/users/${userId}`,
-        updatedUserInfo
-      );
+      await axios.put(`${apiUrl}/api/users/${userId}`, updatedUserInfo, {
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+        },
+      });
       setUpdatedUserInfo({ FirstName: '', LastName: '', Email: '' });
       // tell user their info was updated successfully
       setUpdateMsg('updated successfully');
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        setErrMsg(error.response.data);
+        setErrMsg(error?.response?.data.error);
       }
       console.log(error);
     }
@@ -149,6 +159,8 @@ export default function Dashboard() {
       </div>
       <div className='flex flex-col items-center gap-2'>
         <h1 className='font-bold text-2xl'>Reservations</h1>
+        {reservations?.length == 0 ||
+          (reservations == null && <p>You currently have no reservations.</p>)}
         {reservations?.map((reservation) => (
           <ReservationComponent
             key={reservation.ID}

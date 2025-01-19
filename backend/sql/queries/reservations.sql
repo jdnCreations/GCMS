@@ -54,3 +54,6 @@ GROUP BY reservations.game_id;
 
 -- name: DeleteReservation :exec
 DELETE FROM reservations where id = $1;
+
+-- name: GetReservationById :one
+SELECT * from reservations where id = $1;

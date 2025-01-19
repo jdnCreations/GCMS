@@ -282,7 +282,19 @@ func (cfg *apiConfig) handleGetUserById(w http.ResponseWriter, r *http.Request) 
 }
 
 func (cfg *apiConfig) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
-	log.Printf("trying to update user")
+  token, err := auth.GetBearerToken(r.Header)
+  if err != nil {
+    respondWithError(w, 401, "invalid bearer token")
+    return
+  }
+
+  userId, err := auth.ValidateJWT(token, cfg.secret)
+  if err != nil {
+    respondWithError(w, 401, "invalid jwt")
+    return
+  }
+
+
 	vars := mux.Vars(r)
 	id := vars["id"]
 	uuid, err := uuid.Parse(id)
@@ -290,6 +302,11 @@ func (cfg *apiConfig) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 400, "Invalid user ID format")
 		return
 	}
+
+  if userId != uuid {
+    respondWithError(w, 401, "cannot update another user")
+    return
+  }
 
 	type User struct {
 		FirstName string
@@ -333,7 +350,6 @@ func (cfg *apiConfig) handleCreateGame(w http.ResponseWriter, r *http.Request) {
   log.Println("Attempting to create game")
   decoder := json.NewDecoder(r.Body)
   gameInfo := models.GameInfo{}
-	log.Println(gameInfo)
 	err := decoder.Decode(&gameInfo)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, err.Error())
@@ -366,7 +382,7 @@ func (cfg *apiConfig) handleDeleteGame(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 	uuid, err := uuid.Parse(id)
 	if err != nil {
-		respondWithError(w, 400, "Invalid user ID format")
+		respondWithError(w, 400, "Invalid game ID format")
 		return
 	}
 
@@ -602,6 +618,20 @@ func (cfg *apiConfig) handleGetAllReservations(w http.ResponseWriter, r *http.Re
 }
 
 func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Request) {
+	// check user id matches logged in user details
+  token, err := auth.GetBearerToken(r.Header)
+  if err != nil {
+    respondWithError(w, 404, "invalid bearer token")
+    return
+  }
+
+  uuid, err := auth.ValidateJWT(token, cfg.secret)
+  if err != nil {
+    respondWithError(w, 404, "invalid jwt token")
+    return
+  }
+
+
   type p struct {
     Date string
     StartTime string
@@ -611,9 +641,15 @@ func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Req
   }
   params := p{}
   decoder := json.NewDecoder(r.Body)
-  err := decoder.Decode(&params)
+  err = decoder.Decode(&params)
   if err != nil {
     respondWithError(w, http.StatusBadRequest, "invalid request payload")
+    return
+  }
+
+  // make sure user ids match
+  if params.UserID != uuid.String() {
+    respondWithError(w, 403, "You cannot create a reservation for another user")
     return
   }
   
@@ -652,7 +688,7 @@ func (cfg *apiConfig) handleCreateReservation(w http.ResponseWriter, r *http.Req
   // check if game is available
   copies, err := cfg.db.GetCurrentCopies(r.Context(), gameId.Bytes)
   if err != nil {
-    respondWithError(w, 422, "invalid id")
+    respondWithError(w, 422, "invalid game id")
     return
   }
 
@@ -754,20 +790,50 @@ func (cfg *apiConfig) handleCheckGameAvailable(w http.ResponseWriter, r *http.Re
 }
 
 func (cfg *apiConfig) handleDeleteReservation(w http.ResponseWriter, r *http.Request) {
+  // authorize user
+  token, err := auth.GetBearerToken(r.Header)
+  if err != nil {
+    respondWithError(w, 401, "invalid bearer token")
+    return
+  }
+
+  id, err := auth.ValidateJWT(token, cfg.secret)
+  if err != nil {
+    respondWithError(w, 401, "invalid jwt token")
+    return
+  }
+
 	vars := mux.Vars(r)
 	resID:= vars["id"]
 
-	uuid, err := uuid.Parse(resID)
+	resId, err := uuid.Parse(resID)
   if err != nil {
     respondWithError(w, 400, "Invalid ID format")
     return
   }
 
-	err = cfg.db.DeleteReservation(r.Context(), uuid)
+  res, err := cfg.db.GetReservationById(r.Context(), resId)
+  if err != nil {
+    respondWithError(w, 404, "invalid reservation id")
+    return
+  }
+
+  // check if reservation user id matches user id in bearer
+  if id != res.UserID.Bytes {
+    respondWithError(w, 403, "You cannot delete another user's reservation")
+    return
+  }
+
+	err = cfg.db.DeleteReservation(r.Context(), resId)
 	if err != nil {
 		respondWithError(w, 422, "Could not delete reservation")
 		return
 	}
+
+  _, err = cfg.db.IncCurrentCopies(r.Context(), res.GameID.Bytes)
+  if err != nil {
+    log.Printf("Could not increment copies for game: %v", resId)
+  }
 
 	respondWithJSON(w, 200, "")
 }
@@ -815,7 +881,7 @@ func (cfg *apiConfig) checkReservationsAndUpdate() {
     }
 
     // increment game count for the game
-    err = cfg.db.IncCurrentCopies(context.Background(), res.ID)
+    _, err = cfg.db.IncCurrentCopies(context.Background(), res.GameID.Bytes)
     if err != nil {
       log.Printf("could not increment copies for reservation: %v, err: %s", res.ID, err.Error())
     }
@@ -1025,6 +1091,15 @@ func main() {
 		r.HandleFunc("/api/reservations/{id}", apiCfg.handleDeleteReservation).Methods("DELETE")
 		r.HandleFunc("/api/reservations/{userID}", apiCfg.handleGetReservationsForUser).Methods("GET")
 
+    adminId, err := uuid.Parse("0211014b-e339-4687-bd4e-997cce878a67")
+    if err != nil {
+      log.Printf("Could not set user as admin: %v", err)
+    }
+    // set admin
+    apiCfg.db.SetAdmin(context.Background(), database.SetAdminParams{
+      IsAdmin: true,
+      ID: adminId,
+    })
     go apiCfg.runPeriodicReservationChecker(5 * time.Minute)
 
 		server.ListenAndServe()
@@ -1036,7 +1111,7 @@ func enableCORS(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000") // allow any origin
     w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)

@@ -52,11 +52,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const attemptAutoLogin = async () => {
       try {
         if (jwt) {
-          console.log(jwt);
           setIsAuthenticated(true);
           return;
         }
-        console.log('running a refresh req');
         // check if refresh_token cookie exists
         const response = await axios.post<RefreshResponse>(
           `${apiUrl}/api/refresh`,
@@ -89,6 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setName(response.data.FirstName);
       setJwt(response.data.Token);
       setIsAdmin(response.data.IsAdmin);
+      setUserId(response.data.ID);
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
         // setErrorMsg(error.response.data.error);
@@ -111,6 +110,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setEmail('');
       setJwt('');
       setName('');
+      setUserId('');
+      setIsAdmin(false);
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
         // setErrorMsg(error.response.data.error);

@@ -42,7 +42,7 @@ func (q *Queries) CreateGame(ctx context.Context, arg CreateGameParams) (Game, e
 const decCurrentCopies = `-- name: DecCurrentCopies :exec
 UPDATE games
 SET current_copies = current_copies - 1
-WHERE id = $1 AND current_copies  > 0
+WHERE id = $1 AND current_copies > 0
 `
 
 func (q *Queries) DecCurrentCopies(ctx context.Context, id uuid.UUID) error {
@@ -116,15 +116,24 @@ func (q *Queries) GetGameById(ctx context.Context, id uuid.UUID) (Game, error) {
 	return i, err
 }
 
-const incCurrentCopies = `-- name: IncCurrentCopies :exec
+const incCurrentCopies = `-- name: IncCurrentCopies :one
 UPDATE games
 SET current_copies = current_copies + 1
 WHERE id = $1 AND current_copies < copies
+RETURNING id, current_copies, copies
 `
 
-func (q *Queries) IncCurrentCopies(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, incCurrentCopies, id)
-	return err
+type IncCurrentCopiesRow struct {
+	ID            uuid.UUID
+	CurrentCopies int16
+	Copies        int16
+}
+
+func (q *Queries) IncCurrentCopies(ctx context.Context, id uuid.UUID) (IncCurrentCopiesRow, error) {
+	row := q.db.QueryRow(ctx, incCurrentCopies, id)
+	var i IncCurrentCopiesRow
+	err := row.Scan(&i.ID, &i.CurrentCopies, &i.Copies)
+	return i, err
 }
 
 const updateGame = `-- name: UpdateGame :one

@@ -38,9 +38,10 @@ SELECT current_copies from games where id = $1;
 -- name: DecCurrentCopies :exec
 UPDATE games
 SET current_copies = current_copies - 1
-WHERE id = $1 AND current_copies  > 0;
+WHERE id = $1 AND current_copies > 0;
 
--- name: IncCurrentCopies :exec
+-- name: IncCurrentCopies :one
 UPDATE games
 SET current_copies = current_copies + 1
-WHERE id = $1 AND current_copies < copies;
+WHERE id = $1 AND current_copies < copies
+RETURNING id, current_copies, copies;

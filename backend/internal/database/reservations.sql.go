@@ -189,6 +189,25 @@ func (q *Queries) GetExpiredReservations(ctx context.Context) ([]Reservation, er
 	return items, nil
 }
 
+const getReservationById = `-- name: GetReservationById :one
+SELECT id, res_date, start_time, end_time, user_id, game_id, active from reservations where id = $1
+`
+
+func (q *Queries) GetReservationById(ctx context.Context, id uuid.UUID) (Reservation, error) {
+	row := q.db.QueryRow(ctx, getReservationById, id)
+	var i Reservation
+	err := row.Scan(
+		&i.ID,
+		&i.ResDate,
+		&i.StartTime,
+		&i.EndTime,
+		&i.UserID,
+		&i.GameID,
+		&i.Active,
+	)
+	return i, err
+}
+
 const getReservationsForUser = `-- name: GetReservationsForUser :many
 SELECT reservations.id, reservations.res_date, reservations.start_time, reservations.end_time, reservations.user_id, reservations.game_id, reservations.active,
        games.title as game_name
