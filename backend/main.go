@@ -244,6 +244,18 @@ func (cfg *apiConfig) handleGetAllUsers(w http.ResponseWriter, r *http.Request) 
 }
 
 func (cfg *apiConfig) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
+  token, err := auth.GetBearerToken(r.Header)
+  if err != nil {
+    respondWithError(w, 401, "invalid bearer token")
+    return
+  }
+
+  userId, err := auth.ValidateJWT(token, cfg.secret)
+  if err != nil {
+    respondWithError(w, 401, "invalid jwt")
+    return
+  }
+
 	log.Println("Attempting to delete user")
 	vars := mux.Vars(r)
 	id := vars["id"]
@@ -252,6 +264,11 @@ func (cfg *apiConfig) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 400, "Invalid user ID format")
 		return
 	}
+
+  if userId != uuid {
+    respondWithError(w, 401, "you cannot delete another user")
+    return
+  }
 
 	err = cfg.db.DeleteUserById(r.Context(), uuid) 
 	if err != nil {
@@ -1018,6 +1035,28 @@ func (cfg *apiConfig) handleRevokeToken(w http.ResponseWriter, r *http.Request) 
   respondWithJSON(w, 204, "")
 }
 
+func (cfg *apiConfig) handleVerifyToken(w http.ResponseWriter, r *http.Request) {
+  token, err := auth.GetBearerToken(r.Header)
+  if err != nil {
+    respondWithError(w, 401, "invalid bearer token")
+    return
+  }
+
+  userId, err := auth.ValidateJWT(token, cfg.secret)
+  if err != nil {
+    respondWithError(w, 401, "invalid access token")
+    return
+  }
+
+  user, err := cfg.db.GetUserById(r.Context(), userId)
+  if err != nil {
+    respondWithError(w, 404, "no user with that id found")
+    return
+  }
+
+  respondWithJSON(w, 200, user)
+}
+
 
 func main() {
     err := godotenv.Load(".env")
@@ -1054,6 +1093,7 @@ func main() {
 		// refresh token
 		r.HandleFunc("/api/refresh", apiCfg.handleRefreshToken).Methods("POST");
     r.HandleFunc("/api/revoke", apiCfg.handleRevokeToken).Methods("POST");
+    r.HandleFunc("/api/verify", apiCfg.handleVerifyToken).Methods("GET");
 
 		// users
 		r.HandleFunc("/api/users/admin", apiCfg.handleSetAdmin).Methods("PUT")
@@ -1091,15 +1131,30 @@ func main() {
 		r.HandleFunc("/api/reservations/{id}", apiCfg.handleDeleteReservation).Methods("DELETE")
 		r.HandleFunc("/api/reservations/{userID}", apiCfg.handleGetReservationsForUser).Methods("GET")
 
-    adminId, err := uuid.Parse("0211014b-e339-4687-bd4e-997cce878a67")
+    // create an admin user
+    hashPass, err := auth.HashPassword("admin")
     if err != nil {
-      log.Printf("Could not set user as admin: %v", err)
+      log.Fatalf("could not hash pw")
     }
+    user, err := apiCfg.db.CreateUser(context.Background(), 
+      database.CreateUserParams{
+        FirstName: "admin",
+        LastName: "admin",
+        Email: "admin@mail.com",
+        HashedPassword: hashPass,
+      })
+    if err != nil {
+      log.Println("Could not create admin user, already exists")
+    }
+
     // set admin
     apiCfg.db.SetAdmin(context.Background(), database.SetAdminParams{
       IsAdmin: true,
-      ID: adminId,
+      ID: user.ID,
     })
+    if err != nil {
+      log.Printf("Could not set user as admin: %v", err)
+    }
     go apiCfg.runPeriodicReservationChecker(5 * time.Minute)
 
 		server.ListenAndServe()
@@ -1120,7 +1175,6 @@ func enableCORS(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
-
 }
 
 func jsonContentTypeMiddleware(next http.Handler) http.Handler {

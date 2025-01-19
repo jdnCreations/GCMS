@@ -1,26 +1,21 @@
 import { useAuth } from '@/context/AuthContext';
 import { useForm } from '@/context/FormContext';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 
 const Login: React.FC = () => {
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const { login } = useAuth();
+  const { login, error, setError } = useAuth();
   const [emailInput, setEmailInput] = useState('');
   const [password, setPassword] = useState('');
   const { changeFormType } = useForm();
-  const { setJwt, setIsAuthenticated, setIsAdmin, setEmail, setName } =
-    useAuth();
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
   const swapForm = () => {
-    // change form to register ?
     changeFormType();
+    setError(null);
   };
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    await login({ Email: emailInput, Password: password });
+    await login({ Email: emailInput, Password: password }, e);
   };
 
   return (
@@ -29,7 +24,7 @@ const Login: React.FC = () => {
       onSubmit={handleLogin}
     >
       <input
-        className='mb-2 w-full p-2 border border-gray-300 focus:outline-[#a8bba1] text-[#4a4a4a] rounded'
+        className='mb-2 w-full p-2 border border-gray-300 focus:outline-nook-olive text-[#4a4a4a] rounded'
         type='email'
         placeholder='Email'
         value={emailInput}
@@ -38,7 +33,7 @@ const Login: React.FC = () => {
         }}
       />
       <input
-        className='mb-2 w-full p-2 border border-gray-300 rounded text-[#4a4a4a] '
+        className='mb-2 w-full p-2 border border-gray-300 rounded text-[#4a4a4a] focus:outline-nook-olive '
         type='password'
         placeholder='Password'
         value={password}
@@ -46,9 +41,9 @@ const Login: React.FC = () => {
       />
       <button
         type='submit'
-        className='bg-[#A8BBA1] text-white w-full p-2 rounded hover:bg-[#C8D9C3]'
+        className='bg-nook-olive text-white w-full p-2 rounded hover:bg-nook-light-olive'
       >
-        Login
+        Log in
       </button>
       <p className='text-[#4a4a4a] pt-2'>
         Not a member yet?{' '}
@@ -56,7 +51,7 @@ const Login: React.FC = () => {
           Register now
         </button>
       </p>
-      {errorMsg && <p className='text-red-500 font-bold'>{errorMsg}</p>}
+      {error && <p className='text-red-500 font-bold'>{error}</p>}
     </form>
   );
 };

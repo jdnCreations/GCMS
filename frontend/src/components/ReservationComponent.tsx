@@ -70,18 +70,22 @@ const ReservationComponent: React.FC<{
   };
 
   return (
-    <div className='max-w-sm mx-auto bg-white shadow-lg rounded-lg overflow-hidden border border-gray-200 text-black p-2'>
-      <h1 className='text-gray-800 font-bold'>{reservation?.GameName}</h1>
-      <p className='text-gray-600'>
-        Your reservation is for {reservationLength.hours} hours, and{' '}
-        {reservationLength.minutes} minutes.
-      </p>
+    <div className='max-w-sm w-full mx-auto bg-white shadow-lg rounded-lg overflow-hidden border border-gray-200 text-black p-2'>
+      <div className='text-nook-charcoal'>
+        You have reserved the game{' '}
+        <span className='font-bold'>{reservation?.GameName}</span> for{' '}
+        {reservationLength.hours} hours, and {reservationLength.minutes}{' '}
+        minutes.
+      </div>
       <p>{formatDate(reservation.ResDate)}</p>
-      <p>{formatTime(reservation.StartTime.Microseconds)}</p>
-      <p>{formatTime(reservation.EndTime.Microseconds)}</p>
+      <div className='flex justify-between'>
+        <p>{formatTime(reservation.StartTime.Microseconds)}</p>
+        <p>to</p>
+        <p>{formatTime(reservation.EndTime.Microseconds)}</p>
+      </div>
       <button
         onClick={handleDelete}
-        className='bg-red-800 text-white rounded p-2 font-bold'
+        className='bg-nook-dark-rose text-white rounded p-2 my-1 w-full hover:bg-nook-rose'
       >
         Delete Reservation
       </button>

@@ -28,7 +28,8 @@ JOIN
   games
 ON
   reservations.game_id = games.id
-where user_id = $1;
+where user_id = $1
+ORDER BY res_date asc;
 
 -- name: GetAllActiveReservations :many
 SELECT * from reservations where end_time > NOW();

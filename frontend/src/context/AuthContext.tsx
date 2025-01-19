@@ -14,7 +14,22 @@ interface AuthContextType {
   isAdmin: boolean;
   setIsAdmin: React.Dispatch<React.SetStateAction<boolean>>;
   userId: string;
-  login: (user: { Email: string; Password: string }) => Promise<void>;
+  isLoading: boolean;
+  error: string | null;
+  setError: React.Dispatch<React.SetStateAction<string | null>>;
+  register: (
+    user: {
+      FirstName: string;
+      LastName: string;
+      Email: string;
+      Password: string;
+    },
+    e: React.FormEvent<HTMLFormElement>
+  ) => Promise<void>;
+  login: (
+    user: { Email: string; Password: string },
+    e: React.FormEvent<HTMLFormElement>
+  ) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -30,6 +45,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [name, setName] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [userId, setUserId] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   interface LoginResponse {
     ID: string;
@@ -50,12 +67,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     const attemptAutoLogin = async () => {
+      setIsLoading(true);
       try {
         if (jwt) {
+          // make req to server to validate jwt
+          await axios.get(`${apiUrl}/api/verify`, {
+            headers: {
+              Authorization: `Bearer ${jwt}`,
+            },
+          });
           setIsAuthenticated(true);
+          setIsLoading(false);
           return;
         }
+      } catch (error) {
+        console.error('no valid access token, attempting refresh', error);
+      }
+      try {
         // check if refresh_token cookie exists
+        console.log('checking refresh token');
         const response = await axios.post<RefreshResponse>(
           `${apiUrl}/api/refresh`,
           {},
@@ -70,12 +100,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setUserId(response.data.ID);
       } catch (error) {
         console.log('not authenticated:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
     attemptAutoLogin();
   }, [jwt, apiUrl]);
 
+  const register = async (
+    user: {
+      FirstName: string;
+      LastName: string;
+      Email: string;
+      Password: string;
+    },
+    e: React.FormEvent<HTMLFormElement>
+  ) => {
+    e.preventDefault();
+
+    try {
+      await axios.post(`${apiUrl}/api/users`, user);
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        console.error('API Error:', error.response.data.error);
+        setError(error.response.data.error);
+      } else {
+        console.error('Error creating user:', error);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const login = async (user: { Email: string; Password: string }) => {
+    setIsLoading(true);
     try {
       const response = await axios.post<LoginResponse>(
         `${apiUrl}/api/users/login`,
@@ -92,10 +150,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (axios.isAxiosError(error) && error.response) {
         // setErrorMsg(error.response.data.error);
         console.error('API Error:', error.response.data.error);
+        setError(error.response.data.error);
       } else {
-        // setErrorMsg('Could not login');
-        console.error('Error logging in user', error);
+        if (error instanceof Error) {
+          console.error('Error logging in user', error);
+          setError(error.message);
+        }
       }
+    } finally {
+      setIsLoading(false);
+      // setError(null);
     }
   };
 
@@ -136,8 +200,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setIsAdmin,
         jwt,
         setJwt,
+        register,
         login,
         logout,
+        isLoading,
+        error,
+        setError,
         userId,
       }}
     >

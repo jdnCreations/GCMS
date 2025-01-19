@@ -217,6 +217,7 @@ JOIN
 ON
   reservations.game_id = games.id
 where user_id = $1
+ORDER BY res_date asc
 `
 
 type GetReservationsForUserRow struct {
