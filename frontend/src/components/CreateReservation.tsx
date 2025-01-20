@@ -170,14 +170,14 @@ export default function CreateReservation({
       </select>
       <MessageDisplay errorMsg={error} />
       <button
-        className='bg-nook-light-olive text-nook-charcoal rounded p-2 w-full '
+        className='bg-nook-light-olive text-nook-charcoal hover:text-white rounded mb-2 p-2 w-full '
         type='submit'
       >
         Create Reservation
       </button>
       <button
         onClick={onCancel}
-        className='bg-nook-dark-rose rounded p-2 w-full'
+        className='bg-nook-dark-rose hover:bg-nook-rose rounded p-2 w-full'
         type='button'
       >
         Cancel

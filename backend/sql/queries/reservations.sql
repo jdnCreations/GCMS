@@ -58,3 +58,9 @@ DELETE FROM reservations where id = $1;
 
 -- name: GetReservationById :one
 SELECT * from reservations where id = $1;
+
+-- name: GetReservationsForDay :many
+SELECT reservations.*, games.title 
+from reservations 
+JOIN games on reservations.game_id = games.id
+where res_date = $1;

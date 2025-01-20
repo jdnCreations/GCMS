@@ -208,6 +208,53 @@ func (q *Queries) GetReservationById(ctx context.Context, id uuid.UUID) (Reserva
 	return i, err
 }
 
+const getReservationsForDay = `-- name: GetReservationsForDay :many
+SELECT reservations.id, reservations.res_date, reservations.start_time, reservations.end_time, reservations.user_id, reservations.game_id, reservations.active, games.title 
+from reservations 
+JOIN games on reservations.game_id = games.id
+where res_date = $1
+`
+
+type GetReservationsForDayRow struct {
+	ID        uuid.UUID
+	ResDate   pgtype.Date
+	StartTime pgtype.Time
+	EndTime   pgtype.Time
+	UserID    pgtype.UUID
+	GameID    pgtype.UUID
+	Active    bool
+	Title     string
+}
+
+func (q *Queries) GetReservationsForDay(ctx context.Context, resDate pgtype.Date) ([]GetReservationsForDayRow, error) {
+	rows, err := q.db.Query(ctx, getReservationsForDay, resDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetReservationsForDayRow
+	for rows.Next() {
+		var i GetReservationsForDayRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ResDate,
+			&i.StartTime,
+			&i.EndTime,
+			&i.UserID,
+			&i.GameID,
+			&i.Active,
+			&i.Title,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getReservationsForUser = `-- name: GetReservationsForUser :many
 SELECT reservations.id, reservations.res_date, reservations.start_time, reservations.end_time, reservations.user_id, reservations.game_id, reservations.active,
        games.title as game_name

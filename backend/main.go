@@ -365,9 +365,13 @@ func (cfg *apiConfig) handleGetAllGames(w http.ResponseWriter, r *http.Request) 
 
 func (cfg *apiConfig) handleCreateGame(w http.ResponseWriter, r *http.Request) {
   log.Println("Attempting to create game")
+  type p struct {
+    Title string
+    Copies int16
+  }
+  params := p{} 
   decoder := json.NewDecoder(r.Body)
-  gameInfo := models.GameInfo{}
-	err := decoder.Decode(&gameInfo)
+	err := decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
@@ -375,7 +379,7 @@ func (cfg *apiConfig) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 
 	// validate game 
 	validate := validator.New()
-	err = validate.Struct(gameInfo)
+	err = validate.Struct(params)
 	if err != nil {
 		respondWithError(w, 422, err.Error())
 		return
@@ -383,8 +387,8 @@ func (cfg *apiConfig) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 
 	game, err := cfg.db.CreateGame(r.Context(), 
 	database.CreateGameParams{
-		Title: gameInfo.Title,
-		Copies: gameInfo.Copies,
+		Title: params.Title,
+		Copies: params.Copies,
 	})
 	if err != nil {
 		respondWithError(w, 422, "Could not create game, name must be unique")
@@ -475,15 +479,23 @@ func (cfg *apiConfig) handleUpdateGame(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handleCreateGenre(w http.ResponseWriter, r *http.Request) {
+  type p struct {
+    Name string
+  }
+  params := p{}
   decoder := json.NewDecoder(r.Body)
-  genreInfo := models.GenreInfo{}
-  err := decoder.Decode(&genreInfo)
+  err := decoder.Decode(&params)
   if err != nil {
     respondWithError(w, http.StatusBadRequest, err.Error())
 		return
   }
 
-  genre, err := cfg.db.CreateGenre(r.Context(), genreInfo.Name)
+  if params.Name == "" {
+    respondWithError(w, 400, "invalid string")
+    return
+  }
+
+  genre, err := cfg.db.CreateGenre(r.Context(), params.Name)
   if err != nil {
     respondWithError(w, 422, "Genre may already exist")
     return
@@ -1057,6 +1069,19 @@ func (cfg *apiConfig) handleVerifyToken(w http.ResponseWriter, r *http.Request) 
   respondWithJSON(w, 200, user)
 }
 
+func (cfg *apiConfig) handleGetReservationsForDay(w http.ResponseWriter, r *http.Request) {
+
+  date := pgtype.Date{Time: time.Now(), Valid: true}
+
+  reservations, err := cfg.db.GetReservationsForDay(r.Context(), date)
+  if err != nil {
+    respondWithJSON(w, 200, "")
+    return
+  }
+
+  respondWithJSON(w, 200, reservations)
+}
+
 
 func main() {
     err := godotenv.Load(".env")
@@ -1126,6 +1151,7 @@ func main() {
 		// reservations
     r.HandleFunc("/api/reservations", apiCfg.handleCreateReservation).Methods("POST")
 		r.HandleFunc("/api/reservations", apiCfg.handleGetAllReservations).Methods("GET")
+    r.HandleFunc("/api/reservations/today", apiCfg.handleGetReservationsForDay).Methods("GET")
 		r.HandleFunc("/api/reservations/active", apiCfg.handleActiveReservations).Methods("GET")
 		r.HandleFunc("/api/reservations/check/{gameID}", apiCfg.handleCheckGameAvailable).Methods("GET")
 		r.HandleFunc("/api/reservations/{id}", apiCfg.handleDeleteReservation).Methods("DELETE")

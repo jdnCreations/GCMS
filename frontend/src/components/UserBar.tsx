@@ -4,7 +4,7 @@ import React from 'react';
 export default function UserBar() {
   const { name, logout } = useAuth();
   return (
-    <div className='flex justify-between bg-nook-charcoal rounded p-2'>
+    <div className='flex justify-between bg-nook-charcoal rounded-t p-2'>
       <p>Hey, {name}.</p>
       <button className='hover:text-nook-rose' onClick={logout}>
         Log out
