@@ -120,6 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     try {
       await axios.post(`${apiUrl}/api/users`, user);
+      await login({ Email: user.Email, Password: user.Password });
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
         console.error('API Error:', error.response.data.error);

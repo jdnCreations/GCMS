@@ -62,13 +62,13 @@ const Register: React.FC = () => {
       >
         Register
       </button>
-      <p className='text-nook-charcoal pt-2'>
+      <div className='text-nook-charcoal pt-2'>
         Already a member?{' '}
         <button className='underline' type='button' onClick={swapForm}>
           Login
         </button>
         {error && <p className='text-red-500 font-bold'>{error}</p>}
-      </p>
+      </div>
     </form>
   );
 };
