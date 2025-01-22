@@ -39,3 +39,9 @@ SELECT *
 FROM users 
 JOIN refresh_tokens ON users.id = refresh_tokens.user_id
 where refresh_tokens.token = $1;
+
+-- name: GetUserStats :one
+SELECT 
+  (SELECT COUNT(*) FROM users) as total_users,
+  (SELECT COUNT(DISTINCT users.id) FROM users
+   JOIN reservations on users.id = reservations.user_id) as users_with_reservations;

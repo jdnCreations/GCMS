@@ -157,7 +157,6 @@ export default function CreateReservation({
         onChange={(e) => {
           e.preventDefault();
           const selectedGameId = e.target.value;
-          console.log(selectedGameId);
           setNewReservation({ ...newReservation, GameID: selectedGameId });
         }}
       >

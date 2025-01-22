@@ -74,8 +74,8 @@ const ReservationComponent: React.FC<{
       <div className='text-nook-charcoal'>
         You have reserved the game{' '}
         <span className='font-bold'>{reservation?.GameName}</span> for{' '}
-        {reservationLength.hours} hours, and {reservationLength.minutes}{' '}
-        minutes.
+        {reservationLength.hours} hour{reservationLength.hours > 1 ? 's' : ''},
+        and {reservationLength.minutes} minutes.
       </div>
       <p>{formatDate(reservation.ResDate)}</p>
       <div className='flex justify-between'>

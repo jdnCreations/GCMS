@@ -5,6 +5,8 @@ import UserBar from './UserBar';
 import GameForm from './GameForm';
 import GenreForm from './GenreForm';
 import axios, { isAxiosError } from 'axios';
+import UserData from './UserData';
+import ManageUsers from './ManageUsers';
 
 interface PGTime {
   Microseconds: number;
@@ -26,6 +28,7 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export default function AdminDashboard() {
   const { isAdmin, isAuthenticated, isLoading } = useAuth();
+  const [isManagingUsers, setIsManagingUsers] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const router = useRouter();
 
@@ -60,6 +63,10 @@ export default function AdminDashboard() {
     };
   }, [isAuthenticated, isLoading, router]);
 
+  const handleCancel = () => {
+    setIsManagingUsers(false);
+  };
+
   const formatTime = (microseconds: number) => {
     const milli = microseconds / 1000;
     const date = new Date(milli);
@@ -87,13 +94,29 @@ export default function AdminDashboard() {
       <div className='bg-nook-light-charcoal rounded-b p-4 mb-1'>
         <p>Reservation Data</p>
         <p>{reservations?.length} reservations today</p>
-        {reservations?.map((reservation) => (
-          <div key={reservation.ID}>
-            {reservation.Title} @{' '}
-            {formatTime(reservation.StartTime.Microseconds)}
-          </div>
-        ))}
+        {reservations
+          ?.slice()
+          .sort((a, b) => a.StartTime.Microseconds - b.StartTime.Microseconds)
+          .map((reservation) => (
+            <div
+              className='bg-nook-charcoal p-1 px-2 rounded-sm mb-1'
+              key={reservation.ID}
+            >
+              {reservation.Title} @{' '}
+              {formatTime(reservation.StartTime.Microseconds)}
+            </div>
+          ))}
       </div>
+      {!isManagingUsers && (
+        <button
+          className='bg-nook-charcoal hover:bg-nook-light-charcoal w-full rounded mb-1 p-2'
+          onClick={() => setIsManagingUsers(true)}
+        >
+          Manage Users
+        </button>
+      )}
+      {isManagingUsers && <ManageUsers onCancel={handleCancel} />}
+      <UserData />
       <GameForm />
       <GenreForm />
     </div>

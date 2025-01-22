@@ -265,10 +265,19 @@ func (cfg *apiConfig) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-  if userId != uuid {
-    respondWithError(w, 401, "you cannot delete another user")
-    return
-  }
+	// check if user is an admin
+	possibleAdmin, err := cfg.db.GetUserById(r.Context(), userId)
+	if err != nil {
+		log.Printf("user is not an admin.")
+	}
+
+	log.Printf("user admin?: %v", possibleAdmin.IsAdmin)
+
+	if !possibleAdmin.IsAdmin && userId != uuid {
+		respondWithError(w, 401, "you cannot delete another user")
+		return
+	}
+
 
 	err = cfg.db.DeleteUserById(r.Context(), uuid) 
 	if err != nil {
@@ -320,10 +329,18 @@ func (cfg *apiConfig) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-  if userId != uuid {
-    respondWithError(w, 401, "cannot update another user")
-    return
-  }
+  	// check if user is an admin
+	possibleAdmin, err := cfg.db.GetUserById(r.Context(), userId)
+	if err != nil {
+		log.Printf("user is not an admin.")
+	}
+
+	log.Printf("user admin?: %v", possibleAdmin.IsAdmin)
+
+	if !possibleAdmin.IsAdmin && userId != uuid {
+		respondWithError(w, 401, "you cannot update another user")
+		return
+	}
 
 	type User struct {
 		FirstName string
@@ -1082,6 +1099,46 @@ func (cfg *apiConfig) handleGetReservationsForDay(w http.ResponseWriter, r *http
   respondWithJSON(w, 200, reservations)
 }
 
+func (cfg *apiConfig) handleGetUserStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := cfg.db.GetUserStats(r.Context())
+	if err != nil {
+		respondWithError(w, 500, "could not get user stats");
+		return
+	}
+
+	respondWithJSON(w, 200, stats)
+}
+
+func (cfg *apiConfig) adminOnly(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// get jwt token
+		token, err := auth.GetBearerToken(r.Header)
+		if err != nil {
+			respondWithError(w, 404, "invalid bearer")
+			return
+		}
+
+		id, err := auth.ValidateJWT(token, cfg.secret)
+		if err != nil {
+			respondWithError(w, 404, "invalid token")
+		}
+
+		// get user
+		user, err := cfg.db.GetUserById(r.Context(), id)
+		if err != nil {
+			respondWithError(w, 404, "user does not exist")
+			return
+		}
+
+		if !user.IsAdmin {
+			respondWithError(w, http.StatusForbidden, "admin access required")
+			return
+		}
+
+		next(w, r)
+	}
+}
+
 
 func main() {
     err := godotenv.Load(".env")
@@ -1117,36 +1174,37 @@ func main() {
 
 		// refresh token
 		r.HandleFunc("/api/refresh", apiCfg.handleRefreshToken).Methods("POST");
-    r.HandleFunc("/api/revoke", apiCfg.handleRevokeToken).Methods("POST");
+    r.HandleFunc("/api/revoke", apiCfg.adminOnly(apiCfg.handleRevokeToken)).Methods("POST");
     r.HandleFunc("/api/verify", apiCfg.handleVerifyToken).Methods("GET");
 
 		// users
+		r.HandleFunc("/api/users/stats", apiCfg.handleGetUserStats).Methods("GET")
 		r.HandleFunc("/api/users/admin", apiCfg.handleSetAdmin).Methods("PUT")
 		r.HandleFunc("/api/users", apiCfg.handleCreateUser).Methods("POST")
     r.HandleFunc("/api/users/login", apiCfg.handleLoginUser).Methods("POST")
 		r.HandleFunc("/api/users/logout", apiCfg.handleLogoutUser).Methods("POST")
 		r.HandleFunc("/api/users/{id}", apiCfg.handleGetUserById).Methods("GET")
-		r.HandleFunc("/api/users", apiCfg.handleGetAllUsers).Methods("GET")
+		r.HandleFunc("/api/users", apiCfg.adminOnly(apiCfg.handleGetAllUsers)).Methods("GET")
     r.HandleFunc("/api/users/{id}", apiCfg.handleUpdateUser).Methods("PUT")
 		r.HandleFunc("/api/users/{id}", apiCfg.handleDeleteUser).Methods("DELETE")
 
 		// games
 		r.HandleFunc("/api/games", apiCfg.handleGetAllGames).Methods("GET")
-		r.HandleFunc("/api/games", apiCfg.handleCreateGame).Methods("POST")
+		r.HandleFunc("/api/games", apiCfg.adminOnly(apiCfg.handleCreateGame)).Methods("POST")
 		r.HandleFunc("/api/games/{id}", apiCfg.handleGetGameById).Methods("GET")
-		r.HandleFunc("/api/games/{id}", apiCfg.handleDeleteGame).Methods("DELETE")
-		r.HandleFunc("/api/games/{id}", apiCfg.handleUpdateGame).Methods("PUT")
+		r.HandleFunc("/api/games/{id}", apiCfg.adminOnly(apiCfg.handleDeleteGame)).Methods("DELETE")
+		r.HandleFunc("/api/games/{id}", apiCfg.adminOnly(apiCfg.handleUpdateGame)).Methods("PUT")
     r.HandleFunc("/api/games/{id}/copies", apiCfg.handleGetCurrentCopies).Methods("GET")
 
     // genres
-    r.HandleFunc("/api/genres", apiCfg.handleCreateGenre).Methods("POST")
+    r.HandleFunc("/api/genres", apiCfg.adminOnly(apiCfg.handleCreateGenre)).Methods("POST")
     r.HandleFunc("/api/genres", apiCfg.handleGetAllGenres).Methods("GET")
     r.HandleFunc("/api/genres/{id}", apiCfg.handleGetGenreById).Methods("GET")
-    r.HandleFunc("/api/genres/{id}", apiCfg.handleDeleteGenre).Methods("DELETE")
-    r.HandleFunc("/api/genres/{id}", apiCfg.handleUpdateGenre).Methods("PUT")
+    r.HandleFunc("/api/genres/{id}", apiCfg.adminOnly(apiCfg.handleDeleteGenre)).Methods("DELETE")
+    r.HandleFunc("/api/genres/{id}", apiCfg.adminOnly(apiCfg.handleUpdateGenre)).Methods("PUT")
 
     // add genre to games
-    r.HandleFunc("/api/game_genres/{gameID}", apiCfg.handleAddGenreToGame).Methods("POST")
+    r.HandleFunc("/api/game_genres/{gameID}", apiCfg.adminOnly(apiCfg.handleAddGenreToGame)).Methods("POST")
 
 		// reservations
     r.HandleFunc("/api/reservations", apiCfg.handleCreateReservation).Methods("POST")

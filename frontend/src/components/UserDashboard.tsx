@@ -20,13 +20,13 @@ interface Reservation {
   GameID: string;
   GameName?: string;
 }
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export default function UserDashboard() {
   const { userId, jwt } = useAuth();
 
   const [isCreating, setIsCreating] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
   useEffect(() => {
     const getReservations = async () => {
@@ -43,7 +43,7 @@ export default function UserDashboard() {
       return;
     }
     getReservations();
-  }, [apiUrl, userId]);
+  }, [userId]);
 
   const deleteReservation = async (id: string) => {
     try {
@@ -63,7 +63,11 @@ export default function UserDashboard() {
   };
 
   const handleSuccess = (reservation: Reservation) => {
-    setReservations([...reservations, reservation]);
+    if (reservations?.length == 0) {
+      setReservations([reservation]);
+    } else {
+      setReservations([...reservations, reservation]);
+    }
     setIsCreating(false);
   };
 
@@ -104,23 +108,6 @@ export default function UserDashboard() {
           )}
         </div>
       )}
-
-      {/* <div>
-        <UpdateUser />
-      </div>
-      <div className='flex flex-col items-center gap-2'>
-        <h1 className='font-bold text-2xl text-nook-charcoal'>Reservations</h1>
-        {reservations?.length == 0 ||
-          (reservations == null && <p>You currently have no reservations.</p>)}
-        {reservations?.map((reservation) => (
-          <ReservationComponent
-            key={reservation.ID}
-            reservation={reservation}
-            onDelete={deleteReservation}
-          />
-        ))}
-        <CreateReservation />
-      </div> */}
     </div>
   );
 }

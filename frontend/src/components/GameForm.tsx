@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthContext';
 import axios, { isAxiosError } from 'axios';
 import React, { useState } from 'react';
 
@@ -5,9 +6,10 @@ interface GameFormData {
   Title: string;
   Copies: number;
 }
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export default function GameForm() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  const { jwt } = useAuth();
   const [newGame, setNewGame] = useState<GameFormData>({
     Title: '',
     Copies: 0,
@@ -24,7 +26,9 @@ export default function GameForm() {
     }
 
     try {
-      const response = await axios.post(`${apiUrl}/api/games`, newGame);
+      const response = await axios.post(`${apiUrl}/api/games`, newGame, {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
       console.log(response.data);
     } catch (error) {
       if (isAxiosError(error) && error) {
@@ -46,7 +50,7 @@ export default function GameForm() {
   return (
     <form
       onSubmit={handleAddGame}
-      className='w-full mb-6 p-4 bg-[#B7A99A] rounded shadow text-gray-800'
+      className='w-full mb-1 p-4 bg-[#B7A99A] rounded shadow text-gray-800'
     >
       <input
         type='text'

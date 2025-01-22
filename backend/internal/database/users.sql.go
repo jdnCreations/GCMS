@@ -189,6 +189,25 @@ func (q *Queries) GetUserFromRefreshToken(ctx context.Context, token string) (Ge
 	return i, err
 }
 
+const getUserStats = `-- name: GetUserStats :one
+SELECT 
+  (SELECT COUNT(*) FROM users) as total_users,
+  (SELECT COUNT(DISTINCT users.id) FROM users
+   JOIN reservations on users.id = reservations.user_id) as users_with_reservations
+`
+
+type GetUserStatsRow struct {
+	TotalUsers            int64
+	UsersWithReservations int64
+}
+
+func (q *Queries) GetUserStats(ctx context.Context) (GetUserStatsRow, error) {
+	row := q.db.QueryRow(ctx, getUserStats)
+	var i GetUserStatsRow
+	err := row.Scan(&i.TotalUsers, &i.UsersWithReservations)
+	return i, err
+}
+
 const setAdmin = `-- name: SetAdmin :exec
 UPDATE users
 SET is_admin = $1
