@@ -1163,11 +1163,13 @@ func main() {
 		apiCfg.db = dbQueries
     apiCfg.secret = secret
 
+    portStr := ":" + port
+
 		r := mux.NewRouter()	
 		// wrap with cors and json content type
 		corsRouter := enableCORS(jsonContentTypeMiddleware(r))
 		server := &http.Server{
-			Addr: ":8080",
+			Addr: portStr,
 			Handler: corsRouter,
 		}
 		r.HandleFunc("/api/healthz", handleReadiness).Methods("GET")
